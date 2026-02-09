@@ -2,11 +2,12 @@
 
 /**
  * Oracle - Team-Scoped Executive Assistant Chat
+ * Now with persistence - history loads on page refresh
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Send, Sparkles } from 'lucide-react';
+import { Send, Sparkles, History } from 'lucide-react';
 import { Card } from '@/components/Card';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
@@ -20,7 +21,7 @@ interface Message {
 
 export default function Oracle() {
     const { user, session } = useAuth();
-    const { selectedTeam } = useTeam();
+    const { selectedTeam, loading: teamsLoading } = useTeam();
     const router = useRouter();
 
     const [messages, setMessages] = useState<Message[]>([
@@ -31,9 +32,59 @@ export default function Oracle() {
     ]);
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [historyLoaded, setHistoryLoaded] = useState(false);
+
+    // Load history on mount
+    useEffect(() => {
+        if (selectedTeam && session?.access_token && !historyLoaded) {
+            loadHistory();
+        }
+    }, [selectedTeam, session, historyLoaded]);
+
+    async function loadHistory() {
+        if (!selectedTeam || !session?.access_token) return;
+
+        try {
+            const response = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teams/${selectedTeam.team.id}/oracle/history?limit=20`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'x-team-id': selectedTeam.team.id,
+                    },
+                }
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                if (data.queries && data.queries.length > 0) {
+                    // Convert history to messages (reverse to show oldest first)
+                    const historyMessages: Message[] = [];
+                    data.queries.reverse().forEach((q: any) => {
+                        historyMessages.push({ role: 'user', content: q.question });
+                        historyMessages.push({
+                            role: 'assistant',
+                            content: q.answer,
+                            citations: q.citations
+                        });
+                    });
+                    setMessages(prev => [...prev, ...historyMessages]);
+                }
+            }
+        } catch (error) {
+            console.warn('Failed to load oracle history:', error);
+        } finally {
+            setHistoryLoaded(true);
+        }
+    }
+
+    useEffect(() => {
+        if (!user && !teamsLoading) {
+            router.push('/login');
+        }
+    }, [user, teamsLoading, router]);
 
     if (!user) {
-        router.push('/login');
         return null;
     }
 

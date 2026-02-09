@@ -22,6 +22,7 @@ import analyticsRoutes from './routes/analytics';
 import timelineRoutes from './routes/timeline';
 import settingsRoutes from './routes/settings';
 import notificationsRoutes from './routes/notifications';
+import chatRoutes from './routes/chat';
 
 const app = express();
 
@@ -53,6 +54,7 @@ app.use('/api', analyticsRoutes);  // Tier 1: Health scores & analytics
 app.use('/api', timelineRoutes);   // Timeline: Chronological events
 app.use('/api', settingsRoutes);   // Settings: Team & user preferences
 app.use('/api', notificationsRoutes); // Notifications: Team notifications
+app.use('/api', chatRoutes);       // Chat: Team AI conversations
 
 // 404 handler
 app.use((req, res) => {

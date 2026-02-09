@@ -27,7 +27,8 @@ import {
     FolderOpen,
     BarChart3,
     Moon,
-    Sun
+    Sun,
+    Bot
 } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 
@@ -48,6 +49,7 @@ export function Sidebar({ collapsed, onCollapse }: SidebarProps) {
         { href: '/dashboard/flags', icon: Flag, label: 'Conflicts' },
         { href: '/dashboard/files', icon: FolderOpen, label: 'Files' },
         { href: '/dashboard/oracle', icon: MessageCircle, label: 'Oracle' },
+        { href: '/dashboard/chat', icon: Bot, label: 'AI Chat' },
     ];
 
     const secondaryNav = [

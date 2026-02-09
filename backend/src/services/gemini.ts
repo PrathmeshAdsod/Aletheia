@@ -271,6 +271,56 @@ Answer format:
             citations: relevantDecisions.map(d => d.decision_id)
         };
     }
+
+    // --------------------------------------------------
+    // Team AI Chat: Conversational with context
+    // --------------------------------------------------
+    async chat(
+        message: string,
+        context: string,
+        conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }>
+    ): Promise<{ response: string; sources: string[] }> {
+        // Build conversation history (limit to last 5 exchanges for token efficiency)
+        const recentHistory = conversationHistory.slice(-10);
+        const historyText = recentHistory
+            .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
+            .join('\n');
+
+        const systemPrompt = `You are Aletheia, an AI assistant for team decision management.
+
+CONTEXT FROM TEAM'S KNOWLEDGE BASE:
+${context || 'No specific decisions found relevant to this query.'}
+
+CONVERSATION HISTORY:
+${historyText || 'This is the start of the conversation.'}
+
+GUIDELINES:
+1. Be helpful, conversational, and professional
+2. When referencing team decisions, cite them clearly with [#] notation
+3. If asked about topics not in the context, you may provide general guidance but clarify it's not from the team's documented decisions
+4. Keep responses concise but thorough
+5. If you don't know something, say so honestly
+
+User's message: ${message}
+
+Respond naturally while incorporating relevant context from the team's decisions when applicable:`;
+
+        const response = await this.ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: systemPrompt
+        });
+
+        const responseText = this.extractText(response);
+
+        // Extract source references from context (decision numbers mentioned)
+        const sourceMatches = responseText.match(/\[#?\d+\]/g) || [];
+        const sources = [...new Set(sourceMatches.map(s => s.replace(/\[#?|\]/g, '')))];
+
+        return {
+            response: responseText,
+            sources
+        };
+    }
 }
 
 // --------------------------------------------------
