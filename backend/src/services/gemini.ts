@@ -2,13 +2,13 @@
  * Google Gemini Service
  *
  * Models used:
- * - gemini-2.5-flash-lite : Currently active (rate limit friendly)
+ * - gemini-3-flash-preview : Currently active (rate limit friendly)
  * - gemini-3-flash-preview : Target model (switch when rate limits allow)
  * - gemini-1.5-flash : Oracle queries (stable)
  *
  * MODEL COMPATIBILITY:
- * This service is designed to work with both gemini-2.5-flash-lite and gemini-3-flash-preview.
- * To switch models, simply replace 'gemini-2.5-flash-lite' with 'gemini-3-flash-preview' in the
+ * This service is designed to work with both gemini-3-flash-preview and gemini-3-flash-preview.
+ * To switch models, simply replace 'gemini-3-flash-preview' with 'gemini-3-flash-preview' in the
  * generateContent calls below. The text extraction logic handles both SDK response formats.
  *
  * IMPORTANT:
@@ -74,7 +74,7 @@ class GeminiService {
 
     // --------------------------------------------------
     // Phase 1: Fast cluster extraction
-    // Currently using gemini-2.5-flash-lite (rate limit friendly)
+    // Currently using gemini-3-flash-preview (rate limit friendly)
     // Can be switched to gemini-3-flash-preview when available
     // --------------------------------------------------
     async extractClusters(text: string): Promise<string[]> {
@@ -98,7 +98,7 @@ RULES:
 
         try {
             const response = await this.ai.models.generateContent({
-                model: 'gemini-2.5-flash-lite',
+                model: 'gemini-3-flash-preview',
                 contents: prompt
             });
 
@@ -120,7 +120,7 @@ RULES:
 
     // --------------------------------------------------
     // Phase 2: Structured CME extraction
-    // Currently using gemini-2.5-flash-lite (rate limit friendly)
+    // Currently using gemini-3-flash-preview (rate limit friendly)
     // Can be switched to gemini-3-flash-preview when available
     // --------------------------------------------------
 
@@ -183,7 +183,7 @@ ${clusters.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
         try {
             const response = await this.ai.models.generateContent({
-                model: 'gemini-2.5-flash-lite',
+                model: 'gemini-3-flash-preview',
                 contents: prompt
             });
 
@@ -356,7 +356,7 @@ Respond naturally while incorporating relevant context from the team's decisions
 
         try {
             const response = await this.ai.models.generateContent({
-                model: 'gemini-2.5-flash-lite',
+                model: 'gemini-3-flash-preview',
                 contents: systemPrompt
             });
 

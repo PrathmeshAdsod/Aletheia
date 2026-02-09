@@ -23,9 +23,9 @@ async function testGemini() {
     try {
         const genAI = new GoogleGenAI({ apiKey });
 
-        console.log('\n📡 Testing gemini-2.5-flash-lite model...');
+        console.log('\n📡 Testing gemini-3-flash-preview model...');
         const response = await genAI.models.generateContent({
-            model: 'gemini-2.5-flash-lite',
+            model: 'gemini-3-flash-preview',
             contents: 'Say "Hello from Aletheia!" in exactly 5 words.'
         });
 
@@ -56,7 +56,7 @@ async function testGemini() {
 
         console.log('\n✅ Gemini API is working correctly!');
         console.log('\n💡 Tips:');
-        console.log('   - gemini-2.5-flash-lite is active (rate limit friendly)');
+        console.log('   - gemini-3-flash-preview is active (rate limit friendly)');
         console.log('   - Switch to gemini-3-flash-preview when rate limits allow');
         console.log('   - Text extraction handles multiple SDK response formats');
 

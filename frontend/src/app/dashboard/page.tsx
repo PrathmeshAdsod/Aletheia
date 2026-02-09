@@ -33,6 +33,7 @@ import { StrategicDNA } from '@/components/StrategicDNA';
 import { RiskRadar } from '@/components/RiskRadar';
 import { ExecutiveBriefing } from '@/components/ExecutiveBriefing';
 import { TeamBenchmarks } from '@/components/TeamBenchmarks';
+import { AccountabilityWidget } from '@/components/AccountabilityWidget';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { metricsApi } from '@/lib/team-api';
@@ -228,6 +229,7 @@ export default function CommandCenter() {
                     {/* Column 2: Executive Intelligence */}
                     <div className="space-y-6">
                         <ExecutiveBriefing teamId={selectedTeam.team.id} />
+                        <AccountabilityWidget teamId={selectedTeam.team.id} />
                     </div>
 
                     {/* Column 3: Identity & Benchmarks */}

@@ -25,6 +25,7 @@ import notificationsRoutes from './routes/notifications';
 import chatRoutes from './routes/chat';
 import insightsRoutes from './routes/insights';
 import intelligenceRoutes from './routes/intelligence';
+import strategicIntelligenceRoutes from './routes/strategic-intelligence';
 
 const app = express();
 
@@ -65,6 +66,7 @@ app.use('/api', notificationsRoutes); // Notifications: Team notifications
 app.use('/api', chatRoutes);       // Chat: Team AI conversations
 app.use('/api', insightsRoutes);   // Insights: Proactive AI recommendations
 app.use('/api', intelligenceRoutes); // Intelligence: Strategic Pulse & DNA
+app.use('/api', strategicIntelligenceRoutes); // Strategic Story & Accountability
 
 // 404 handler
 app.use((_req, res) => {

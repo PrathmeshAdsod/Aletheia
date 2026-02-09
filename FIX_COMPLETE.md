@@ -59,7 +59,7 @@
 ---
 
 ### 4. **Model Compatibility** ✅
-**Problem**: Code wasn't ready for switching between `gemini-2.5-flash-lite` and `gemini-3-flash-preview`.
+**Problem**: Code wasn't ready for switching between `gemini-3-flash-preview` and `gemini-3-flash-preview`.
 
 **Root Cause**: Hardcoded model names without documentation or flexibility.
 
@@ -159,7 +159,7 @@
 ### Current Setup (Rate Limit Optimized)
 ```typescript
 // All services use:
-model: 'gemini-2.5-flash-lite'  // Fast, low rate limits
+model: 'gemini-3-flash-preview'  // Fast, low rate limits
 
 // Except Oracle:
 model: 'gemini-1.5-flash'  // Stable, proven for citations
@@ -302,7 +302,7 @@ AND team_id = 'YOUR_TEAM_ID';
 - [x] Logs are informative
 
 ### All Models Compatible
-- [x] gemini-2.5-flash-lite works
+- [x] gemini-3-flash-preview works
 - [x] gemini-3-flash-preview ready
 - [x] gemini-1.5-flash stable
 - [x] Text extraction handles all formats

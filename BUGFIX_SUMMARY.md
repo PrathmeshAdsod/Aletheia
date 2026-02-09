@@ -40,7 +40,7 @@
 - `frontend/src/components/ExecutiveBriefing.tsx`
 
 ### 4. **Model Compatibility**
-**Problem**: Code wasn't clear about model switching between `gemini-2.5-flash-lite` and `gemini-3-flash-preview`.
+**Problem**: Code wasn't clear about model switching between `gemini-3-flash-preview` and `gemini-3-flash-preview`.
 
 **Solution**:
 - Added comprehensive documentation in service files
@@ -90,7 +90,7 @@ The Executive Briefing is cached for **12 hours**, limiting AI generation to **2
 ### Current Setup (Rate Limit Friendly)
 ```typescript
 // In gemini.ts
-model: 'gemini-2.5-flash-lite'  // Fast, low rate limits
+model: 'gemini-3-flash-preview'  // Fast, low rate limits
 ```
 
 ### Switch to gemini-3-flash-preview
@@ -99,19 +99,19 @@ When rate limits allow, update these locations:
 **File: `backend/src/services/gemini.ts`**
 ```typescript
 // Line ~60: Cluster extraction
-model: 'gemini-3-flash-preview'  // Change from gemini-2.5-flash-lite
+model: 'gemini-3-flash-preview'  // Change from gemini-3-flash-preview
 
 // Line ~120: Decision extraction  
-model: 'gemini-3-flash-preview'  // Change from gemini-2.5-flash-lite
+model: 'gemini-3-flash-preview'  // Change from gemini-3-flash-preview
 
 // Line ~220: Chat
-model: 'gemini-3-flash-preview'  // Change from gemini-2.5-flash-lite
+model: 'gemini-3-flash-preview'  // Change from gemini-3-flash-preview
 ```
 
 **File: `backend/src/services/executive-briefing.ts`**
 ```typescript
 // Line ~280: AI Summary generation
-model: 'gemini-3-flash-preview'  // Change from gemini-2.5-flash-lite
+model: 'gemini-3-flash-preview'  // Change from gemini-3-flash-preview
 ```
 
 **Note**: Keep Oracle queries on `gemini-1.5-flash` (stable, proven model).
@@ -161,7 +161,7 @@ The code now includes extensive console logging:
 ### Optimization Tips
 1. **Cache is your friend**: 12-hour cache prevents redundant AI calls
 2. **Batch uploads**: Upload multiple documents at once
-3. **Monitor rate limits**: Use `gemini-2.5-flash-lite` for development
+3. **Monitor rate limits**: Use `gemini-3-flash-preview` for development
 
 ## Verification Checklist
 

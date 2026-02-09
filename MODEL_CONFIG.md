@@ -6,11 +6,11 @@
 
 | Use Case | Current Model | Purpose | Location |
 |----------|--------------|---------|----------|
-| **Cluster Extraction** | `gemini-2.5-flash-lite` | Fast decision identification | `gemini.ts:60` |
-| **Decision Structuring** | `gemini-2.5-flash-lite` | CME JSON extraction | `gemini.ts:120` |
+| **Cluster Extraction** | `gemini-3-flash-preview` | Fast decision identification | `gemini.ts:60` |
+| **Decision Structuring** | `gemini-3-flash-preview` | CME JSON extraction | `gemini.ts:120` |
 | **Oracle Queries** | `gemini-1.5-flash` | Citation-based answers | `gemini.ts:220` |
-| **Team Chat** | `gemini-2.5-flash-lite` | Conversational AI | `gemini.ts:280` |
-| **Executive Briefing** | `gemini-2.5-flash-lite` | Daily summaries | `executive-briefing.ts:280` |
+| **Team Chat** | `gemini-3-flash-preview` | Conversational AI | `gemini.ts:280` |
+| **Executive Briefing** | `gemini-3-flash-preview` | Daily summaries | `executive-briefing.ts:280` |
 
 ### Target Models (When Rate Limits Allow)
 
@@ -24,7 +24,7 @@
 
 ## Model Characteristics
 
-### gemini-2.5-flash-lite
+### gemini-3-flash-preview
 - ✅ **Pros**: Low rate limits, fast, cost-effective
 - ⚠️ **Cons**: Slightly less accurate than 3.0 models
 - 🎯 **Best for**: Development, testing, rate-limited environments
@@ -44,7 +44,7 @@
 ### Quick Switch (All at Once)
 ```bash
 # In backend/src/services/
-find . -name "*.ts" -exec sed -i 's/gemini-2.5-flash-lite/gemini-3-flash-preview/g' {} +
+find . -name "*.ts" -exec sed -i 's/gemini-3-flash-preview/gemini-3-flash-preview/g' {} +
 ```
 
 ### Manual Switch (Recommended)
@@ -55,7 +55,7 @@ find . -name "*.ts" -exec sed -i 's/gemini-2.5-flash-lite/gemini-3-flash-preview
 // Line: ~60
 
 const response = await this.ai.models.generateContent({
-    model: 'gemini-3-flash-preview',  // Changed from gemini-2.5-flash-lite
+    model: 'gemini-3-flash-preview',  // Changed from gemini-3-flash-preview
     contents: prompt
 });
 ```
@@ -66,7 +66,7 @@ const response = await this.ai.models.generateContent({
 // Line: ~120
 
 const response = await this.ai.models.generateContent({
-    model: 'gemini-3-flash-preview',  // Changed from gemini-2.5-flash-lite
+    model: 'gemini-3-flash-preview',  // Changed from gemini-3-flash-preview
     contents: prompt
 });
 ```
@@ -77,7 +77,7 @@ const response = await this.ai.models.generateContent({
 // Line: ~280
 
 const response = await this.ai.models.generateContent({
-    model: 'gemini-3-flash-preview',  // Changed from gemini-2.5-flash-lite
+    model: 'gemini-3-flash-preview',  // Changed from gemini-3-flash-preview
     contents: systemPrompt
 });
 ```
@@ -88,7 +88,7 @@ const response = await this.ai.models.generateContent({
 // Line: ~280
 
 const response = await genAI.models.generateContent({
-    model: 'gemini-3-flash-preview',  // Changed from gemini-2.5-flash-lite
+    model: 'gemini-3-flash-preview',  // Changed from gemini-3-flash-preview
     contents: prompt
 });
 ```
@@ -132,7 +132,7 @@ npx ts-node scripts/test-gemini.ts
 
 ## Rate Limit Management
 
-### Current Strategy (gemini-2.5-flash-lite)
+### Current Strategy (gemini-3-flash-preview)
 - **Uploads**: Unlimited (within reason)
 - **Briefings**: 2 per day per team (12-hour cache)
 - **Chat**: Unlimited
@@ -154,12 +154,12 @@ Error: RESOURCE_EXHAUSTED
 **Solutions**:
 1. Implement exponential backoff
 2. Increase cache duration
-3. Switch back to gemini-2.5-flash-lite temporarily
+3. Switch back to gemini-3-flash-preview temporarily
 4. Upgrade API quota
 
 ## Performance Comparison
 
-| Metric | gemini-2.5-flash-lite | gemini-3-flash-preview |
+| Metric | gemini-3-flash-preview | gemini-3-flash-preview |
 |--------|----------------------|------------------------|
 | **Latency** | ~1-2s | ~0.8-1.5s |
 | **Accuracy** | Good | Excellent |
@@ -189,7 +189,7 @@ npm run dev
 # Check current models
 grep -n "model:" gemini.ts executive-briefing.ts
 
-# Should show gemini-2.5-flash-lite
+# Should show gemini-3-flash-preview
 ```
 
 ## Monitoring
@@ -241,6 +241,6 @@ All model calls log:
 
 | Date | Change | Reason |
 |------|--------|--------|
-| Current | gemini-2.5-flash-lite | Rate limit management |
+| Current | gemini-3-flash-preview | Rate limit management |
 | Target | gemini-3-flash-preview | Better accuracy when limits allow |
 | Stable | gemini-1.5-flash (Oracle) | Proven citation accuracy |

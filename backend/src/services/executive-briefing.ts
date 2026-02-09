@@ -149,7 +149,7 @@ export class ExecutiveBriefingService {
             console.warn('Briefing cache check failed:', err);
         }
 
-        console.log('🔄 Generating new Executive Briefing with gemini-2.5-flash-lite...');
+        console.log('🔄 Generating new Executive Briefing with gemini-3-flash-preview...');
 
         // Gather intelligence from all sources
         const [pulse, dna, risks] = await Promise.all([
@@ -364,7 +364,7 @@ ${risks.signals.length > 0 ? `Top Risk: ${risks.signals[0].title}` : ''}
 Generate a crisp 2-3 sentence executive summary that captures the most important insight. Start with the key takeaway, then add context. Be direct and actionable.`;
 
             const response = await genAI.models.generateContent({
-                model: 'gemini-2.5-flash-lite',
+                model: 'gemini-3-flash-preview',
                 contents: prompt
             });
 
