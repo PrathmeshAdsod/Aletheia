@@ -123,7 +123,7 @@ export default function StrategicStoryPage() {
                     chapter.sentiment === 'negative' ? '#ef4444' : '#6b7280';
                 
                 return (
-                    <Card key={idx} className="p-6 border-l-4" style={{ borderLeftColor: borderColor } as React.CSSProperties}>
+                    <Card key={idx} className="p-6 border-l-4" style={{ borderLeftColor: borderColor }}>
                     <h3 className="text-h3 text-text-primary">{chapter.title}</h3>
                     <p className="text-small text-text-tertiary flex items-center gap-2 mt-1">
                         <Clock className="w-4 h-4" />

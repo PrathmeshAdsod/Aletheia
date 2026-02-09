@@ -9,9 +9,10 @@ interface CardProps {
     children: ReactNode;
     className?: string;
     hover?: boolean;
+    style?: React.CSSProperties;
 }
 
-export function Card({ children, className = '', hover = false }: CardProps) {
+export function Card({ children, className = '', hover = false, style }: CardProps) {
     return (
         <div
             className={`
@@ -19,6 +20,7 @@ export function Card({ children, className = '', hover = false }: CardProps) {
         ${hover ? 'card-hover cursor-pointer' : ''}
         ${className}
       `}
+            style={style}
         >
             {children}
         </div>
