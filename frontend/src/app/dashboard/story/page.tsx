@@ -118,11 +118,12 @@ export default function StrategicStoryPage() {
                 <p className="text-body text-text-primary leading-relaxed whitespace-pre-line">{story.fullNarrative}</p>
             </Card>
 
-            {story.chapters?.map((chapter, idx) => (
-                <Card key={idx} className="p-6 border-l-4" style={{
-                    borderLeftColor: chapter.sentiment === 'positive' ? '#10b981' :
-                        chapter.sentiment === 'negative' ? '#ef4444' : '#6b7280'
-                }}>
+            {story.chapters?.map((chapter, idx) => {
+                const borderColor = chapter.sentiment === 'positive' ? '#10b981' :
+                    chapter.sentiment === 'negative' ? '#ef4444' : '#6b7280';
+                
+                return (
+                    <Card key={idx} className="p-6 border-l-4" style={{ borderLeftColor: borderColor } as React.CSSProperties}>
                     <h3 className="text-h3 text-text-primary">{chapter.title}</h3>
                     <p className="text-small text-text-tertiary flex items-center gap-2 mt-1">
                         <Clock className="w-4 h-4" />
@@ -130,7 +131,8 @@ export default function StrategicStoryPage() {
                     </p>
                     <p className="text-body text-text-secondary mt-4">{chapter.narrative}</p>
                 </Card>
-            ))}
+                );
+            })}
 
             <Card className="p-8 bg-gradient-to-br from-aligned/5 to-transparent">
                 <div className="flex items-center gap-2 mb-4">
