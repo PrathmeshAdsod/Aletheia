@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * Protected Route Wrapper for Dashboard
- * Only checks auth, doesn't auto-redirect
+ * Dashboard Layout - Premium Enterprise Design
+ * Protected route wrapper with sidebar and top navigation
  */
 
 import { useEffect, useState } from 'react';
@@ -21,9 +21,15 @@ export default function DashboardLayout({
     const { loading: teamsLoading } = useTeam();
     const router = useRouter();
     const [mounted, setMounted] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
     useEffect(() => {
         setMounted(true);
+        // Restore sidebar state from localStorage
+        const savedState = localStorage.getItem('aletheia-sidebar-collapsed');
+        if (savedState) {
+            setSidebarCollapsed(JSON.parse(savedState));
+        }
     }, []);
 
     useEffect(() => {
@@ -33,11 +39,19 @@ export default function DashboardLayout({
         }
     }, [mounted, authLoading, user, router]);
 
+    const handleSidebarCollapse = (collapsed: boolean) => {
+        setSidebarCollapsed(collapsed);
+        localStorage.setItem('aletheia-sidebar-collapsed', JSON.stringify(collapsed));
+    };
+
     // Show loading while checking auth
     if (!mounted || authLoading || teamsLoading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-background">
-                <div className="text-text-secondary">Loading...</div>
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin" />
+                    <span className="text-text-secondary">Loading Aletheia...</span>
+                </div>
             </div>
         );
     }
@@ -48,14 +62,19 @@ export default function DashboardLayout({
     }
 
     return (
-        <div className="min-h-screen bg-background flex">
-            <Sidebar />
-            <div className="flex-1 flex flex-col ml-64">
-                <TopNav />
-                <main className="flex-1 p-8">
+        <div className="min-h-screen bg-background">
+            <TopNav />
+            <Sidebar collapsed={sidebarCollapsed} onCollapse={handleSidebarCollapse} />
+            <main
+                className={`
+                    pt-16 min-h-screen transition-all duration-200
+                    ${sidebarCollapsed ? 'pl-16' : 'pl-65'}
+                `}
+            >
+                <div className="p-8">
                     {children}
-                </main>
-            </div>
+                </div>
+            </main>
         </div>
     );
 }
