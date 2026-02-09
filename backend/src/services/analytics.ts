@@ -7,11 +7,14 @@
  * - Score history tracking
  * 
  * Architecture: Modular design for Tier 2+ integration
+ * 
+ * IMPORTANT: Uses neo4j-based conflict detection as source of truth
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from '../config/env';
 import { HealthScores, ImportanceLevel, CMEDecision, ScoreHistoryEntry } from '../types/cme';
+import { conflictDetectorService } from './conflict-detector';
 
 // Numeric weights for importance levels
 const IMPORTANCE_WEIGHTS: Record<ImportanceLevel, number> = {
@@ -52,6 +55,7 @@ class AnalyticsService {
 
     /**
      * Calculate Alignment Score
+     * Uses neo4j-based conflict detection as source of truth
      * Formula: (decisions_without_conflicts / total_decisions) * 100
      */
     async calculateAlignment(teamId: string): Promise<number> {
@@ -63,42 +67,32 @@ class AnalyticsService {
 
         if (!totalDecisions || totalDecisions === 0) return 100;
 
-        // Get decisions involved in unresolved conflicts
-        const { data: conflicts } = await this.client
-            .from('conflicts')
-            .select('decision_a_id, decision_b_id')
-            .eq('team_id', teamId)
-            .eq('resolved', false);
+        // Use conflict-detector which queries Neo4j (source of truth)
+        const conflicts = await conflictDetectorService.detectConflicts(teamId);
+        const unresolvedConflicts = conflicts.filter(c => !c.resolved);
 
+        // Get unique decision IDs involved in conflicts
         const conflictedDecisionIds = new Set<string>();
-        (conflicts || []).forEach(c => {
-            conflictedDecisionIds.add(c.decision_a_id);
-            conflictedDecisionIds.add(c.decision_b_id);
+        unresolvedConflicts.forEach(c => {
+            c.conflict_path.forEach(id => conflictedDecisionIds.add(id));
         });
 
-        const decisionsWithoutConflicts = totalDecisions - conflictedDecisionIds.size;
+        const decisionsWithoutConflicts = Math.max(0, totalDecisions - conflictedDecisionIds.size);
         return this.clamp((decisionsWithoutConflicts / totalDecisions) * 100);
     }
 
     /**
      * Calculate Stability Score
-     * Formula: 100 - (churn_rate * 10)
-     * Churn = reversals or updates per week
+     * Uses conflict count as proxy for instability
+     * Formula: 100 - (conflict_count * 2)
      */
     async calculateStability(teamId: string): Promise<number> {
-        const oneWeekAgo = new Date();
-        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        // Use conflict-detector which queries Neo4j
+        const conflicts = await conflictDetectorService.detectConflicts(teamId);
+        const unresolvedCount = conflicts.filter(c => !c.resolved).length;
 
-        // Count decisions modified/reversed in last week
-        // For now, we use conflict count as proxy for instability
-        const { count: recentConflicts } = await this.client
-            .from('conflicts')
-            .select('*', { count: 'exact', head: true })
-            .eq('team_id', teamId)
-            .gte('detected_at', oneWeekAgo.toISOString());
-
-        const churnRate = recentConflicts || 0;
-        return this.clamp(100 - (churnRate * 10));
+        // Reduce score based on number of conflicts (softer penalty)
+        return this.clamp(100 - (unresolvedCount * 2));
     }
 
     /**
@@ -123,28 +117,21 @@ class AnalyticsService {
 
     /**
      * Calculate Resolution Maturity Score
-     * Formula: max(0, 100 - min(100, (avg_conflict_age_days / threshold) * 100))
-     * Clamped to prevent negatives
+     * Based on conflict severity distribution
+     * Lower severity conflicts = better resolution maturity
      */
     async calculateResolution(teamId: string): Promise<number> {
-        const { data: unresolvedConflicts } = await this.client
-            .from('conflicts')
-            .select('detected_at')
-            .eq('team_id', teamId)
-            .eq('resolved', false);
+        // Use conflict-detector which queries Neo4j
+        const conflicts = await conflictDetectorService.detectConflicts(teamId);
+        const unresolvedConflicts = conflicts.filter(c => !c.resolved);
 
-        if (!unresolvedConflicts || unresolvedConflicts.length === 0) return 100;
+        if (unresolvedConflicts.length === 0) return 100;
 
-        const now = new Date();
-        let totalAgeDays = 0;
-        unresolvedConflicts.forEach(c => {
-            const detectedAt = new Date(c.detected_at);
-            const ageDays = (now.getTime() - detectedAt.getTime()) / (1000 * 60 * 60 * 24);
-            totalAgeDays += ageDays;
-        });
+        // Average severity (1-10 scale)
+        const avgSeverity = unresolvedConflicts.reduce((sum, c) => sum + c.severity, 0) / unresolvedConflicts.length;
 
-        const avgAgeDays = totalAgeDays / unresolvedConflicts.length;
-        const rawScore = 100 - Math.min(100, (avgAgeDays / RESOLUTION_THRESHOLD_DAYS) * 100);
+        // Convert to score: lower severity = higher maturity
+        const rawScore = 100 - (avgSeverity * 10);
         return this.clamp(rawScore);
     }
 
@@ -284,17 +271,15 @@ class AnalyticsService {
             .select('*', { count: 'exact', head: true })
             .eq('team_id', teamId);
 
-        const { count: conflictCount } = await this.client
-            .from('conflicts')
-            .select('*', { count: 'exact', head: true })
-            .eq('team_id', teamId)
-            .eq('resolved', false);
+        // Use conflict-detector which queries Neo4j
+        const conflicts = await conflictDetectorService.detectConflicts(teamId);
+        const unresolvedCount = conflicts.filter(c => !c.resolved).length;
 
         return {
             scores,
             history,
             decisionCount: decisionCount || 0,
-            conflictCount: conflictCount || 0,
+            conflictCount: unresolvedCount,
         };
     }
 }

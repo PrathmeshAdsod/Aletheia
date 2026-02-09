@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Files Page - Document Management
+ * Files Page - Document Management with Drag-Drop Reordering
  * Shows uploaded files with processing status and decision counts
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
     FolderOpen,
@@ -15,7 +15,7 @@ import {
     Clock,
     AlertCircle,
     Search,
-    Filter,
+    GripVertical,
     ChevronRight
 } from 'lucide-react';
 import { Card } from '@/components/Card';
@@ -30,6 +30,7 @@ interface UploadedFile {
     decisionCount: number;
     uploadedAt: string;
     uploadedBy?: string;
+    uploadedByName?: string;
 }
 
 export default function FilesPage() {
@@ -39,6 +40,9 @@ export default function FilesPage() {
     const [files, setFiles] = useState<UploadedFile[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
+    const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+    const [isReordering, setIsReordering] = useState(false);
 
     useEffect(() => {
         if (!user && !teamsLoading) {
@@ -69,7 +73,6 @@ export default function FilesPage() {
 
             if (response.ok) {
                 const data = await response.json();
-                // Map snake_case API response to camelCase frontend interface
                 const mappedFiles: UploadedFile[] = (data.files || []).map((f: any) => ({
                     id: f.file_hash || f.id || crypto.randomUUID(),
                     fileName: f.file_name || f.fileName || 'Unknown',
@@ -78,6 +81,7 @@ export default function FilesPage() {
                     decisionCount: f.decision_count ?? f.decisionCount ?? 0,
                     uploadedAt: f.uploaded_at || f.uploadedAt || new Date().toISOString(),
                     uploadedBy: f.uploaded_by || f.uploadedBy,
+                    uploadedByName: f.uploaded_by_name || f.uploadedByName,
                 }));
                 setFiles(mappedFiles);
             }
@@ -88,16 +92,82 @@ export default function FilesPage() {
         }
     }
 
-    const getStatusIcon = (status: UploadedFile['status']) => {
-        switch (status) {
-            case 'completed':
-                return <CheckCircle className="w-4 h-4 text-aligned" />;
-            case 'processing':
-                return <Clock className="w-4 h-4 text-primary animate-pulse" />;
-            case 'failed':
-                return <AlertCircle className="w-4 h-4 text-conflict" />;
+    // Drag handlers
+    const handleDragStart = useCallback((e: React.DragEvent, index: number) => {
+        setDraggedIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', index.toString());
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent, index: number) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (draggedIndex !== null && index !== draggedIndex) {
+            setDragOverIndex(index);
         }
-    };
+    }, [draggedIndex]);
+
+    const handleDragLeave = useCallback(() => {
+        setDragOverIndex(null);
+    }, []);
+
+    const handleDrop = useCallback(async (e: React.DragEvent, dropIndex: number) => {
+        e.preventDefault();
+        setDragOverIndex(null);
+
+        if (draggedIndex === null || draggedIndex === dropIndex) {
+            setDraggedIndex(null);
+            return;
+        }
+
+        // Reorder files locally
+        const newFiles = [...files];
+        const [movedFile] = newFiles.splice(draggedIndex, 1);
+        newFiles.splice(dropIndex, 0, movedFile);
+        setFiles(newFiles);
+        setDraggedIndex(null);
+
+        // Call API to persist reorder
+        await reorderFiles(newFiles);
+    }, [draggedIndex, files]);
+
+    const handleDragEnd = useCallback(() => {
+        setDraggedIndex(null);
+        setDragOverIndex(null);
+    }, []);
+
+    async function reorderFiles(orderedFiles: UploadedFile[]) {
+        if (!selectedTeam || !session?.access_token) return;
+
+        try {
+            setIsReordering(true);
+            const response = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teams/${selectedTeam.team.id}/files/reorder`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'x-team-id': selectedTeam.team.id,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        files: orderedFiles.map(f => f.fileHash)
+                    }),
+                }
+            );
+
+            if (!response.ok) {
+                console.error('Failed to reorder files');
+                // Refresh to get server state
+                await fetchFiles();
+            }
+        } catch (error) {
+            console.error('Failed to reorder files:', error);
+            await fetchFiles();
+        } finally {
+            setIsReordering(false);
+        }
+    }
 
     const getStatusBadge = (status: UploadedFile['status']) => {
         switch (status) {
@@ -169,7 +239,7 @@ export default function FilesPage() {
                 <div>
                     <h1 className="text-h1 text-text-primary mb-2">Files</h1>
                     <p className="text-body text-text-secondary">
-                        Manage uploaded documents and processing history
+                        Manage uploaded documents and processing history. Drag to reorder files.
                     </p>
                 </div>
                 <a
@@ -193,16 +263,42 @@ export default function FilesPage() {
                 />
             </div>
 
+            {/* Reordering Indicator */}
+            {isReordering && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-primary-light text-primary text-small rounded-lg">
+                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    Saving order...
+                </div>
+            )}
+
             {/* Files List */}
             <Card>
                 {filteredFiles.length > 0 ? (
                     <div className="divide-y divide-border">
-                        {filteredFiles.map((file) => (
+                        {filteredFiles.map((file, index) => (
                             <div
                                 key={file.id}
-                                className="p-5 hover:bg-neutral-light/50 transition-colors group"
+                                draggable={!searchQuery}
+                                onDragStart={(e) => handleDragStart(e, index)}
+                                onDragOver={(e) => handleDragOver(e, index)}
+                                onDragLeave={handleDragLeave}
+                                onDrop={(e) => handleDrop(e, index)}
+                                onDragEnd={handleDragEnd}
+                                className={`p-5 transition-all group ${draggedIndex === index
+                                    ? 'opacity-50 bg-primary-light/30'
+                                    : dragOverIndex === index
+                                        ? 'border-t-2 border-primary bg-primary-light/10'
+                                        : 'hover:bg-neutral-light/50'
+                                    } ${!searchQuery ? 'cursor-grab active:cursor-grabbing' : ''}`}
                             >
                                 <div className="flex items-center gap-4">
+                                    {/* Drag Handle */}
+                                    {!searchQuery && (
+                                        <div className="flex-shrink-0 opacity-30 group-hover:opacity-100 transition-opacity cursor-grab">
+                                            <GripVertical className="w-5 h-5 text-text-tertiary" />
+                                        </div>
+                                    )}
+
                                     {/* File Icon */}
                                     <div className="w-12 h-12 bg-primary-light rounded-xl flex items-center justify-center flex-shrink-0">
                                         <FileText className="w-6 h-6 text-primary" />
@@ -218,10 +314,10 @@ export default function FilesPage() {
                                         </div>
                                         <div className="flex items-center gap-4 text-small text-text-secondary">
                                             <span>{formatDate(file.uploadedAt)}</span>
-                                            {file.uploadedBy && (
+                                            {(file.uploadedByName || file.uploadedBy) && (
                                                 <>
                                                     <span className="text-text-tertiary">•</span>
-                                                    <span>by {file.uploadedBy}</span>
+                                                    <span>by {file.uploadedByName || file.uploadedBy}</span>
                                                 </>
                                             )}
                                         </div>

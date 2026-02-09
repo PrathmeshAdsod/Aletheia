@@ -89,12 +89,13 @@ router.post('/organizations/:orgId/teams', authenticateUser, async (req: Request
  */
 router.get('/teams/:teamId/members', authenticateUser, requireTeamAccess('viewer'), async (req: Request, res: Response) => {
     try {
-        const { teamId } = req.params;
+        const teamId = req.teamId!;
 
-        // TODO: Add getTeamMembers method to supabaseService
+        const members = await supabaseService.getTeamMembers(teamId);
+
         res.json({
             success: true,
-            members: []
+            members
         });
     } catch (error) {
         console.error('Get team members error:', error);

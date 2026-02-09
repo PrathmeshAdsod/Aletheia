@@ -159,4 +159,49 @@ router.delete(
     }
 );
 
+/**
+ * PATCH /api/teams/:teamId/files/reorder
+ * Reorder files by updating their sequence.
+ * Requires member role or higher.
+ */
+router.patch(
+    '/teams/:teamId/files/reorder',
+    authenticateUser,
+    requireTeamAccess('member'),
+    async (req: Request, res: Response) => {
+        try {
+            const teamId = req.teamId!;
+            const { files } = req.body;
+
+            if (!files || !Array.isArray(files)) {
+                res.status(400).json({ error: 'files array is required' });
+                return;
+            }
+
+            // Update sequence for each file
+            for (let i = 0; i < files.length; i++) {
+                const fileHash = files[i];
+                await supabaseService.updateFileSequence(teamId, fileHash, i);
+            }
+
+            // Trigger graph rebuild in Neo4j
+            try {
+                await neo4jService.rebuildGraphForTeam(teamId);
+            } catch (graphError) {
+                console.warn('Graph rebuild failed, but sequences updated:', graphError);
+            }
+
+            res.json({
+                success: true,
+                message: 'Files reordered successfully'
+            });
+        } catch (error) {
+            console.error('File reorder error:', error);
+            res.status(500).json({
+                error: error instanceof Error ? error.message : 'Failed to reorder files'
+            });
+        }
+    }
+);
+
 export default router;

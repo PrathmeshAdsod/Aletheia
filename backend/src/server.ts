@@ -19,6 +19,9 @@ import flagRoutes from './routes/flags';
 import oracleRoutes from './routes/oracle';
 import integrationRoutes from './routes/integrations';
 import analyticsRoutes from './routes/analytics';
+import timelineRoutes from './routes/timeline';
+import settingsRoutes from './routes/settings';
+import notificationsRoutes from './routes/notifications';
 
 const app = express();
 
@@ -31,7 +34,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
     res.json({
         status: 'healthy',
         timestamp: new Date().toISOString(),
@@ -47,6 +50,9 @@ app.use('/api', oracleRoutes);     // Team-scoped Oracle queries
 app.use('/api', flagRoutes);       // Flags (to be updated for teams)
 app.use('/api', integrationRoutes); // Integrations (to be updated for teams)
 app.use('/api', analyticsRoutes);  // Tier 1: Health scores & analytics
+app.use('/api', timelineRoutes);   // Timeline: Chronological events
+app.use('/api', settingsRoutes);   // Settings: Team & user preferences
+app.use('/api', notificationsRoutes); // Notifications: Team notifications
 
 // 404 handler
 app.use((req, res) => {

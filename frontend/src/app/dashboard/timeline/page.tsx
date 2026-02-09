@@ -60,44 +60,26 @@ export default function TimelinePage() {
 
         try {
             setLoading(true);
-            // Simulate timeline data - in production this would fetch from API
-            // TODO: Add actual timeline API endpoint
-            const mockEvents: TimelineEvent[] = [
+            const response = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teams/${selectedTeam.team.id}/timeline`,
                 {
-                    id: '1',
-                    type: 'upload',
-                    title: 'Document Uploaded',
-                    description: 'strategy_q1_2026.pdf processed successfully',
-                    timestamp: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
-                    metadata: { fileName: 'strategy_q1_2026.pdf', decisionCount: 12 }
-                },
-                {
-                    id: '2',
-                    type: 'conflict',
-                    title: 'Conflict Detected',
-                    description: 'Budget allocation contradicts previous Q4 decision',
-                    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-                    metadata: { severity: 7 }
-                },
-                {
-                    id: '3',
-                    type: 'decision',
-                    title: 'Decision Extracted',
-                    description: 'Engineering team approved Kubernetes migration',
-                    timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-                    metadata: { actor: 'Engineering Lead' }
-                },
-                {
-                    id: '4',
-                    type: 'resolution',
-                    title: 'Conflict Resolved',
-                    description: 'Marketing timeline updated to align with product roadmap',
-                    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-                },
-            ];
-            setEvents(mockEvents);
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'x-team-id': selectedTeam.team.id,
+                    },
+                }
+            );
+
+            if (response.ok) {
+                const data = await response.json();
+                setEvents(data.events || []);
+            } else {
+                console.error('Failed to fetch timeline:', response.statusText);
+                setEvents([]);
+            }
         } catch (error) {
             console.error('Failed to fetch timeline:', error);
+            setEvents([]);
         } finally {
             setLoading(false);
         }
@@ -189,8 +171,8 @@ export default function TimelinePage() {
                         key={f}
                         onClick={() => setFilter(f)}
                         className={`px-4 py-2 rounded-lg text-small font-medium transition-colors ${filter === f
-                                ? 'bg-primary text-white'
-                                : 'bg-neutral-light text-text-secondary hover:bg-border'
+                            ? 'bg-primary text-white'
+                            : 'bg-neutral-light text-text-secondary hover:bg-border'
                             }`}
                     >
                         {f.charAt(0).toUpperCase() + f.slice(1)}

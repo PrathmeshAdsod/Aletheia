@@ -13,7 +13,7 @@ import { config } from '../config/env';
 import { CMEDecision, JobStatus } from '../types/cme';
 
 class SupabaseService {
-    private client: SupabaseClient;
+    public client: SupabaseClient;
 
     constructor() {
         this.client = createClient(config.SUPABASE_URL, config.SUPABASE_SERVICE_KEY);
@@ -217,6 +217,33 @@ class SupabaseService {
     // =========================================
 
     /**
+     * Get all members of a team with user profile info.
+     */
+    async getTeamMembers(teamId: string): Promise<any[]> {
+        const { data, error } = await this.client
+            .from('team_members')
+            .select('user_id, role, created_at')
+            .eq('team_id', teamId)
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching team members:', error);
+            throw error;
+        }
+
+        // Fetch user profiles for members
+        const userIds = (data || []).map(m => m.user_id);
+        const userProfiles = await this.getUserProfiles(userIds);
+
+        return (data || []).map(member => ({
+            user_id: member.user_id,
+            role: member.role,
+            joined_at: member.created_at,
+            name: userProfiles.get(member.user_id) || member.user_id.substring(0, 8),
+        }));
+    }
+
+    /**
      * Get team membership for a user in a specific team.
      */
     async getTeamMembership(userId: string, teamId: string): Promise<{ role: string; organizationId: string } | null> {
@@ -262,14 +289,46 @@ class SupabaseService {
     }
 
     /**
-     * Get uploaded files for a team.
+     * Get user profiles by IDs from auth.users table.
+     * Returns a map of user_id to display name (email fallback).
+     */
+    async getUserProfiles(userIds: string[]): Promise<Map<string, string>> {
+        const profileMap = new Map<string, string>();
+        if (!userIds.length) return profileMap;
+
+        // Unique user IDs only
+        const uniqueIds = [...new Set(userIds.filter(id => id))];
+
+        try {
+            // Query auth.users through admin API (service role key required)
+            for (const userId of uniqueIds) {
+                const { data } = await this.client.auth.admin.getUserById(userId);
+                if (data?.user) {
+                    const name = data.user.user_metadata?.full_name
+                        || data.user.user_metadata?.name
+                        || data.user.email?.split('@')[0]
+                        || userId.substring(0, 8);
+                    profileMap.set(userId, name);
+                }
+            }
+        } catch (error) {
+            console.error('Error fetching user profiles:', error);
+            // Return IDs as fallback
+            uniqueIds.forEach(id => profileMap.set(id, id.substring(0, 8)));
+        }
+
+        return profileMap;
+    }
+
+    /**
+     * Get uploaded files for a team with user display names.
      */
     async getUploadedFiles(teamId: string): Promise<any[]> {
         const { data, error } = await this.client
             .from('decisions')
-            .select('file_hash, source_ref, uploaded_at, uploaded_by')
+            .select('file_hash, source_ref, uploaded_at, uploaded_by, upload_sequence')
             .eq('team_id', teamId)
-            .order('uploaded_at', { ascending: false });
+            .order('upload_sequence', { ascending: true });
 
         if (error) {
             console.error('Error fetching files:', error);
@@ -278,6 +337,8 @@ class SupabaseService {
 
         // Group by file_hash
         const fileMap = new Map();
+        const uploaderIds: string[] = [];
+
         data.forEach(row => {
             if (!fileMap.has(row.file_hash)) {
                 fileMap.set(row.file_hash, {
@@ -285,14 +346,30 @@ class SupabaseService {
                     file_name: row.source_ref,
                     uploaded_at: row.uploaded_at,
                     uploaded_by: row.uploaded_by,
+                    upload_sequence: row.upload_sequence,
                     decision_count: 1
                 });
+                if (row.uploaded_by) {
+                    uploaderIds.push(row.uploaded_by);
+                }
             } else {
                 fileMap.get(row.file_hash).decision_count++;
             }
         });
 
-        return Array.from(fileMap.values());
+        // Fetch user profiles
+        const userProfiles = await this.getUserProfiles(uploaderIds);
+
+        // Map user IDs to names
+        const files = Array.from(fileMap.values()).map(file => ({
+            ...file,
+            uploaded_by_name: file.uploaded_by ? userProfiles.get(file.uploaded_by) : null,
+        }));
+
+        // Sort by sequence
+        files.sort((a, b) => (a.upload_sequence || 0) - (b.upload_sequence || 0));
+
+        return files;
     }
 
     /**
@@ -326,6 +403,41 @@ class SupabaseService {
         if (error) {
             console.error('Error updating sequence:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Update file sequence (for file reordering).
+     * Updates all decisions from a file to a new base sequence.
+     */
+    async updateFileSequence(teamId: string, fileHash: string, newSequence: number): Promise<void> {
+        // Get all decision IDs for this file
+        const { data: decisions, error: fetchError } = await this.client
+            .from('decisions')
+            .select('decision_id')
+            .eq('team_id', teamId)
+            .eq('file_hash', fileHash)
+            .order('upload_sequence', { ascending: true });
+
+        if (fetchError) {
+            console.error('Error fetching decisions for reorder:', fetchError);
+            throw fetchError;
+        }
+
+        // Base sequence: newSequence * 10000 to leave room for decisions within the file
+        const baseSequence = newSequence * 10000;
+
+        // Update each decision with incrementing sequence
+        for (let i = 0; i < (decisions?.length || 0); i++) {
+            const { error } = await this.client
+                .from('decisions')
+                .update({ upload_sequence: baseSequence + i })
+                .eq('decision_id', decisions![i].decision_id);
+
+            if (error) {
+                console.error('Error updating file sequence:', error);
+                throw error;
+            }
         }
     }
 

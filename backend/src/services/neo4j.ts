@@ -272,6 +272,42 @@ class Neo4jService {
     }
 
     /**
+     * Rebuild graph relationships for a team after file reordering.
+     * Updates NEXT relationships to reflect new sequence.
+     */
+    async rebuildGraphForTeam(teamId: string): Promise<void> {
+        const session = this.getSession();
+        try {
+            // First, remove existing NEXT relationships for this team
+            await session.run(
+                `
+                MATCH (d1:Decision {team_id: $team_id})-[r:NEXT]->(d2:Decision)
+                DELETE r
+                `,
+                { team_id: teamId }
+            );
+
+            // Recreate NEXT relationships based on current upload_sequence
+            await session.run(
+                `
+                MATCH (d:Decision {team_id: $team_id})
+                WITH d ORDER BY d.upload_sequence
+                WITH collect(d) AS decisions
+                UNWIND range(0, size(decisions)-2) AS i
+                WITH decisions[i] AS curr, decisions[i+1] AS next, i
+                WHERE curr.file_hash = next.file_hash
+                MERGE (curr)-[:NEXT {sequence: i}]->(next)
+                `,
+                { team_id: teamId }
+            );
+
+            console.log(`🔄 Rebuilt graph relationships for team ${teamId}`);
+        } finally {
+            await session.close();
+        }
+    }
+
+    /**
      * Close driver connection (call on server shutdown).
      */
     async close(): Promise<void> {

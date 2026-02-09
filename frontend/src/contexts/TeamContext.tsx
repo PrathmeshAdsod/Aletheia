@@ -30,6 +30,7 @@ interface TeamContextType {
     selectedTeam: TeamMembership | null;
     selectTeam: (teamId: string) => void;
     loading: boolean;
+    userRole: 'admin' | 'member' | 'viewer' | null;
 }
 
 const TeamContext = createContext<TeamContextType | undefined>(undefined);
@@ -74,8 +75,11 @@ export function TeamProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // Compute current user's role in selected team
+    const userRole = selectedTeam?.role || null;
+
     return (
-        <TeamContext.Provider value={{ teams, selectedTeam, selectTeam, loading }}>
+        <TeamContext.Provider value={{ teams, selectedTeam, selectTeam, loading, userRole }}>
             {children}
         </TeamContext.Provider>
     );
