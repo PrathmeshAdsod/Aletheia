@@ -8,7 +8,6 @@
  */
 
 import { randomUUID } from 'crypto';
-import { JobStatus } from '../types/cme';
 import { supabaseService } from './supabase';
 
 interface QueueJob {
@@ -34,6 +33,7 @@ class JobQueueService {
      * Returns job ID immediately (non-blocking).
      */
     async enqueue(
+        teamId: string,
         fileBuffer: Buffer,
         fileName: string,
         fileHash: string,
@@ -52,7 +52,7 @@ class JobQueueService {
         this.queue.push(job);
 
         // Create job record in Supabase
-        await supabaseService.createJob(jobId, fileHash, fileName);
+        await supabaseService.createJob(jobId, teamId, fileHash, fileName);
 
         console.log(`📥 Job ${jobId} enqueued (queue size: ${this.queue.length})`);
 

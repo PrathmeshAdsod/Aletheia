@@ -28,7 +28,7 @@ const IMPORTANCE_WEIGHTS: Record<ImportanceLevel, number> = {
 const MAX_WEIGHT = IMPORTANCE_WEIGHTS[ImportanceLevel.CRITICAL];
 
 // Threshold configs
-const RESOLUTION_THRESHOLD_DAYS = 30;
+
 const VELOCITY_BASELINE_PER_WEEK = 10; // Decisions per week baseline
 
 class AnalyticsService {

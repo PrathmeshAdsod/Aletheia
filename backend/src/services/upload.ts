@@ -49,6 +49,7 @@ class UploadService {
 
         // Step 3: Enqueue job (non-blocking)
         const jobId = await jobQueueService.enqueue(
+            teamId,
             fileBuffer,
             fileName,
             fileHash,
@@ -81,44 +82,58 @@ class UploadService {
         fileHash: string,
         sourceType: SourceType
     ): Promise<void> {
-        // Convert buffer to text (simplified - in production, handle PDFs, videos, etc.)
-        const text = fileBuffer.toString('utf-8');
+        try {
+            // Convert buffer to text (simplified - in production, handle PDFs, videos, etc.)
+            const text = fileBuffer.toString('utf-8');
 
-        // Step 4: Gemini extraction
-        const decisions = await geminiService.processDocument(
-            text,
-            sourceType,
-            fileName
-        );
+            if (!text || text.trim().length === 0) {
+                console.warn('⚠️  Empty file content, skipping processing');
+                return;
+            }
 
-        if (decisions.length === 0) {
-            console.log('⚠️  No decisions found in file');
-            return;
+            console.log(`📄 Processing file: ${fileName} (${text.length} characters)`);
+
+            // Step 4: Gemini extraction
+            const decisions = await geminiService.processDocument(
+                text,
+                sourceType,
+                fileName
+            );
+
+            if (decisions.length === 0) {
+                console.log('⚠️  No decisions found in file');
+                return;
+            }
+
+            console.log(`✅ Extracted ${decisions.length} decisions`);
+
+            // Step 5: Store in Supabase (with team/org context)
+            await supabaseService.storeMetadata(
+                teamId,
+                organizationId,
+                fileHash,
+                decisions,
+                sourceType,
+                userId
+            );
+            console.log(`💾 Stored ${decisions.length} decisions in Supabase for team ${teamId}`);
+
+            // Step 6: Store in Neo4j (with team context)
+            for (const decision of decisions) {
+                await neo4jService.storeDecision(teamId, organizationId, decision);
+            }
+            console.log(`🔗 Stored ${decisions.length} decisions in Neo4j graph for team ${teamId}`);
+
+            // Step 6.5: Create temporal relationships
+            await neo4jService.createTemporalRelationships(teamId, decisions, fileHash, fileName);
+
+            // Step 7: Run conflict detection (team-scoped)
+            const conflicts = await conflictDetectorService.detectConflicts(teamId);
+            console.log(`🔴 Detected ${conflicts.length} conflicts for team ${teamId}`);
+        } catch (error) {
+            console.error('❌ File processing failed:', error);
+            throw error; // Re-throw to mark job as failed
         }
-
-        // Step 5: Store in Supabase (with team/org context)
-        await supabaseService.storeMetadata(
-            teamId,
-            organizationId,
-            fileHash,
-            decisions,
-            sourceType,
-            userId
-        );
-        console.log(`💾 Stored ${decisions.length} decisions in Supabase for team ${teamId}`);
-
-        // Step 6: Store in Neo4j (with team context)
-        for (const decision of decisions) {
-            await neo4jService.storeDecision(teamId, organizationId, decision);
-        }
-        console.log(`🔗 Stored ${decisions.length} decisions in Neo4j graph for team ${teamId}`);
-
-        // Step 6.5: Create temporal relationships
-        await neo4jService.createTemporalRelationships(teamId, decisions, fileHash, fileName);
-
-        // Step 7: Run conflict detection (team-scoped)
-        const conflicts = await conflictDetectorService.detectConflicts(teamId);
-        console.log(`🔴 Detected ${conflicts.length} conflicts for team ${teamId}`);
     }
 }
 

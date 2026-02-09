@@ -5,6 +5,7 @@
 
 import { GoogleGenAI } from '@google/genai';
 import { SupabaseClient } from '@supabase/supabase-js';
+import { supabaseService } from './supabase';
 import { strategicPulseService, PulseSnapshot } from './strategic-pulse';
 import { strategicDNAService, StrategicDNA } from './strategic-dna';
 import { riskRadarService, RiskRadarResult } from './risk-radar';
@@ -55,7 +56,101 @@ export class ExecutiveBriefingService {
     /**
      * Generate a comprehensive executive briefing
      */
-    async generateBriefing(decisions: CMEDecision[]): Promise<ExecutiveBriefing> {
+    /**
+     * Try to get a cached briefing
+     */
+    async getCachedBriefing(teamId: string): Promise<ExecutiveBriefing | null> {
+        try {
+            const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+
+            const { data: cached } = await supabaseService.client
+                .from('proactive_insights')
+                .select('evidence, created_at, title, description, suggested_action')
+                .eq('team_id', teamId)
+                .eq('category', 'briefing')
+                .gte('created_at', twelveHoursAgo)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (cached && cached.evidence) {
+                console.log('✅ [Service] Found cached Executive Briefing in DB');
+                const evidence = cached.evidence as any;
+
+                return {
+                    id: `briefing-cached-${Date.now()}`,
+                    generatedAt: cached.created_at,
+                    headline: cached.title || '📊 Daily Strategic Intelligence',
+                    executiveSummary: cached.description || '',
+                    sections: evidence.sections || [],
+                    recommendations: [cached.suggested_action].filter(Boolean),
+                    focusAreas: [],
+                    metrics: evidence.metrics || {
+                        pulseScore: 50,
+                        pulseTrend: 'stable' as const,
+                        riskScore: 0,
+                        decisionVelocity: 0,
+                        activeRisks: 0
+                    }
+                };
+            }
+        } catch (err) {
+            console.warn('Briefing cache check failed:', err);
+        }
+        return null;
+    }
+
+    /**
+     * Generate a comprehensive executive briefing
+     * Cached for 12 hours (2 requests/day limit)
+     */
+    async generateBriefing(teamId: string, decisions: CMEDecision[]): Promise<ExecutiveBriefing> {
+        console.log(`🔍 [Service] generateBriefing called for team ${teamId} with ${decisions.length} decisions`);
+
+        // 1. Check cache
+        try {
+            const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+
+            const { data: cached } = await supabaseService.client
+                .from('proactive_insights')
+                .select('evidence, created_at, title, description, suggested_action')
+                .eq('team_id', teamId)
+                .eq('category', 'briefing')
+                .gte('created_at', twelveHoursAgo)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (cached && cached.evidence) {
+                console.log('✅ [Service] Serving cached Executive Briefing from DB');
+                const evidence = cached.evidence as any;
+
+                // Reconstruct briefing from cached data
+                const cachedBriefing: ExecutiveBriefing = {
+                    id: `briefing-cached-${Date.now()}`,
+                    generatedAt: cached.created_at,
+                    headline: cached.title || '📊 Daily Strategic Intelligence',
+                    executiveSummary: cached.description || '',
+                    sections: evidence.sections || [],
+                    recommendations: [cached.suggested_action].filter(Boolean),
+                    focusAreas: [],
+                    metrics: evidence.metrics || {
+                        pulseScore: 50,
+                        pulseTrend: 'stable' as const,
+                        riskScore: 0,
+                        decisionVelocity: 0,
+                        activeRisks: 0
+                    }
+                };
+
+                return cachedBriefing;
+            }
+        } catch (err) {
+            console.warn('Briefing cache check failed:', err);
+        }
+
+        console.log('🔄 Generating new Executive Briefing with gemini-2.5-flash-lite...');
+
         // Gather intelligence from all sources
         const [pulse, dna, risks] = await Promise.all([
             strategicPulseService.calculatePulse(decisions),
@@ -79,7 +174,7 @@ export class ExecutiveBriefingService {
         // Identify focus areas
         const focusAreas = this.identifyFocusAreas(pulse, risks, recentDecisions);
 
-        return {
+        const briefing: ExecutiveBriefing = {
             id: `briefing-${Date.now()}`,
             generatedAt: new Date().toISOString(),
             headline: this.generateHeadline(pulse, risks),
@@ -96,6 +191,33 @@ export class ExecutiveBriefingService {
                 activeRisks: risks.signals.length
             }
         };
+
+        // Cache the result
+        // We do this via storeBriefing, but we should make sure we don't double-call it if the caller does it.
+        // The caller (route) calls storeBriefing.
+        // But to ensure we obey the limit, we should probably return a flag or just rely on the fact that if we just generated it, the caller will store it.
+        // However, if we Return cached, the caller will try to store it again?
+        // storeBriefing inserts a new record. We don't want to duplicate cached records.
+        // Implication: The route handler calls `storeBriefing`.
+        // If we return a cached briefing, the route handler will insert it again into DB as a new row?
+        // Yes.
+        // So we should probably handle storage HERE and tell the route not to store, or just handle it purely here.
+        // But the route handler is: `const briefing = await ...; executiveBriefingService.storeBriefing(...)`
+        // I can't easily change the route to "know" if it was cached without changing return type.
+        // Actually, I can just NOT store it in the route if I move storage logic inside here (for fresh generation).
+        // Let's move storage logic inside here for fresh generation.
+        // The route handler's `storeBriefing` call is "async, don't wait".
+
+        // Better approach:
+        // Update the route to NOT call storeBriefing.
+        // Call storeBriefing internally here ONLY when generating new.
+
+        // Let's implement that.
+        this.storeBriefing(supabaseService.client, teamId, briefing).catch(console.error);
+
+        console.log('✅ Generated new Executive Briefing');
+
+        return briefing;
     }
 
     /**
@@ -242,14 +364,39 @@ ${risks.signals.length > 0 ? `Top Risk: ${risks.signals[0].title}` : ''}
 Generate a crisp 2-3 sentence executive summary that captures the most important insight. Start with the key takeaway, then add context. Be direct and actionable.`;
 
             const response = await genAI.models.generateContent({
-                model: 'gemini-2.0-flash',
+                model: 'gemini-2.5-flash-lite',
                 contents: prompt
             });
 
-            // Extract text from response (use type assertion for SDK compatibility)
+            // Extract text from response - handle multiple SDK response formats
+            let text = '';
             const responseAny = response as any;
-            const text = typeof responseAny.text === 'string' ? responseAny.text : '';
-            return text.trim() || this.getFallbackSummary(pulse, risks);
+
+            // Try response.response.text() method
+            if (responseAny.response && typeof responseAny.response.text === 'function') {
+                try {
+                    text = responseAny.response.text();
+                } catch (e) {
+                    console.warn('Failed to call response.text():', e);
+                }
+            }
+
+            // Fallback: try direct text property
+            if (!text && typeof responseAny.text === 'string') {
+                text = responseAny.text;
+            }
+
+            // Fallback: try candidates structure
+            if (!text && responseAny.response?.candidates?.[0]?.content?.parts?.[0]?.text) {
+                text = responseAny.response.candidates[0].content.parts[0].text;
+            }
+
+            if (!text || text.trim().length === 0) {
+                console.warn('Empty AI summary response, using fallback');
+                return this.getFallbackSummary(pulse, risks);
+            }
+
+            return text.trim();
         } catch (error) {
             console.error('AI summary generation failed:', error);
             return this.getFallbackSummary(pulse, risks);

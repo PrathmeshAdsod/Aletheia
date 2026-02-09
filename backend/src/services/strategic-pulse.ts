@@ -50,15 +50,17 @@ export class StrategicPulseService {
      * Calculate the current strategic pulse for a team
      */
     async calculatePulse(decisions: CMEDecision[]): Promise<PulseSnapshot> {
-        if (decisions.length === 0) {
+        if (!decisions || decisions.length === 0) {
             return this.getEmptyPulse();
         }
 
         // Sort by timestamp descending
-        const sorted = [...decisions].sort((a, b) =>
+        const sorted = [...decisions].filter(d => d && (d.timestamp || d.created_at)).sort((a, b) =>
             new Date(b.timestamp || b.created_at).getTime() -
             new Date(a.timestamp || a.created_at).getTime()
         );
+
+        if (sorted.length === 0) return this.getEmptyPulse();
 
         // Calculate core metrics
         const velocity = this.calculateVelocity(sorted);
@@ -114,7 +116,7 @@ export class StrategicPulseService {
         const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
         const recentCount = decisions.filter(d =>
-            new Date(d.timestamp || d.created_at) >= oneWeekAgo
+            new Date(d.timestamp || d.created_at).getTime() >= oneWeekAgo.getTime()
         ).length;
 
         const previousCount = decisions.filter(d => {
@@ -140,7 +142,7 @@ export class StrategicPulseService {
         const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
         const recentConflicts = decisions.filter(d =>
-            new Date(d.timestamp || d.created_at) >= oneWeekAgo &&
+            new Date(d.timestamp || d.created_at).getTime() >= oneWeekAgo.getTime() &&
             (d.sentiment === 'conflict' || d.sentiment === 'red-flag')
         ).length;
 
@@ -187,7 +189,7 @@ export class StrategicPulseService {
 
         // Get recent decisions for keyword analysis
         const recentDecisions = decisions.slice(0, Math.min(20, decisions.length));
-        const recentText = recentDecisions.map(d => `${d.decision} ${d.reasoning}`).join(' ').toLowerCase();
+        const recentText = recentDecisions.map(d => `${d.decision || ''} ${d.reasoning || ''}`).join(' ').toLowerCase();
 
         // Crisis indicators
         const crisisKeywords = ['urgent', 'emergency', 'crisis', 'critical', 'immediately', 'failure'];
@@ -313,7 +315,7 @@ export class StrategicPulseService {
      * Generate trajectory projections
      */
     private generateProjections(
-        decisions: CMEDecision[],
+        _decisions: CMEDecision[],
         currentPulse: number,
         conflictMomentum: number,
         coherence: number
@@ -391,7 +393,37 @@ export class StrategicPulseService {
 
         if (error) {
             console.error('Failed to store pulse snapshot:', error);
+        } else {
+            console.log('✅ Stored new Strategic Pulse snapshot');
         }
+    }
+
+    /**
+     * Get latest pulse for a team
+     */
+    async getLatestPulse(supabase: SupabaseClient, teamId: string): Promise<PulseSnapshot | null> {
+        const { data, error } = await supabase
+            .from('strategic_pulse')
+            .select('*')
+            .eq('team_id', teamId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (error || !data) {
+            return null;
+        }
+
+        return {
+            pulseScore: data.pulse_score,
+            velocity: data.velocity,
+            velocityTrend: data.velocity_trend,
+            conflictMomentum: data.conflict_momentum,
+            coherenceScore: data.coherence_score,
+            phase: data.phase,
+            signals: data.signals || [],
+            projections: data.projections || []
+        };
     }
 
     /**

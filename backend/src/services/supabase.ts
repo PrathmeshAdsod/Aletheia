@@ -87,11 +87,12 @@ class SupabaseService {
     /**
      * Create a new job record for async processing.
      */
-    async createJob(jobId: string, fileHash: string, fileName: string): Promise<void> {
+    async createJob(jobId: string, teamId: string, fileHash: string, fileName: string): Promise<void> {
         const { error } = await this.client
             .from('upload_jobs')
             .insert({
                 job_id: jobId,
+                team_id: teamId,
                 file_hash: fileHash,
                 file_name: fileName,
                 status: 'pending',
@@ -144,6 +145,7 @@ class SupabaseService {
         // Map to JobStatus interface
         return {
             job_id: data.job_id,
+            team_id: data.team_id,
             status: data.status as 'queued' | 'processing' | 'completed' | 'failed',
             progress: data.decisions_extracted || 0,
             file_hash: data.file_hash,

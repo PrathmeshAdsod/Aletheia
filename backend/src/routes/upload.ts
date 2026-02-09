@@ -51,14 +51,14 @@ router.post(
                 sourceType
             );
 
-            res.json({
+            return res.json({
                 success: true,
                 job_id: jobId,
                 message: 'File upload queued for processing'
             });
         } catch (error) {
             console.error('Upload error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 error: error instanceof Error ? error.message : 'Upload failed'
             });
         }
@@ -89,10 +89,10 @@ router.get(
                 return res.status(403).json({ error: 'Access denied' });
             }
 
-            res.json(job);
+            return res.json(job);
         } catch (error) {
             console.error('Status check error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 error: error instanceof Error ? error.message : 'Status check failed'
             });
         }

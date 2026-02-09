@@ -22,38 +22,68 @@ const router = Router();
 router.get(
     '/teams/:teamId/pulse',
     authenticateUser,
-    requireTeamAccess,
+    requireTeamAccess('viewer'),
     async (req: Request, res: Response): Promise<void> => {
+        const { teamId } = req.params;
+        console.log(`🔍 [API] GET /teams/${teamId}/pulse - Request started`);
+
         try {
-            const { teamId } = req.params;
+            const refresh = req.query.refresh === 'true';
             const supabase = supabaseService.client;
 
+            // Try to get cached Pulse first (unless refresh requested)
+            if (!refresh) {
+                console.log(`🔍 [API] Checking for cached Pulse data...`);
+                const cached = await strategicPulseService.getLatestPulse(supabase, teamId);
+                if (cached) {
+                    console.log(`✅ [API] Cached Pulse data found. Returning immediately.`);
+                    res.json({
+                        success: true,
+                        pulse: cached,
+                        cached: true
+                    });
+                    return;
+                }
+                console.log(`⚠️ [API] No cached Pulse data found (or it returned null). Proceeding to calculate.`);
+            } else {
+                console.log(`🔄 [API] Refresh requested. Skipping cache check.`);
+            }
+
             // Fetch all decisions for the team
+            console.log(`📦 [API] Fetching decisions from database...`);
             const { data: decisions, error } = await supabase
-                .from('cme_decisions')
+                .from('decisions')
                 .select('*')
                 .eq('team_id', teamId)
-                .order('timestamp', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (error) {
-                console.error('Error fetching decisions for pulse:', error);
+                console.error('❌ [API] Error fetching decisions:', error);
                 res.status(500).json({ error: 'Failed to fetch decisions' });
                 return;
             }
+            console.log(`📦 [API] Fetched ${decisions?.length || 0} decisions.`);
 
             // Calculate current pulse
+            console.log(`⚙️ [API] Calculating Pulse...`);
             const pulse = await strategicPulseService.calculatePulse(decisions || []);
+            console.log(`✅ [API] Pulse calculation complete. Score: ${pulse.pulseScore}`);
 
             // Store snapshot (async, don't wait)
-            strategicPulseService.storePulse(supabase, teamId, pulse).catch(console.error);
+            console.log(`💾 [API] Initiating background storage of Pulse snapshot...`);
+            strategicPulseService.storePulse(supabase, teamId, pulse).catch(err =>
+                console.error('❌ [API] Background storage failed:', err)
+            );
 
             res.json({
                 success: true,
                 pulse,
+                cached: false,
                 calculatedAt: new Date().toISOString()
             });
+            console.log(`🚀 [API] Response sent.`);
         } catch (error) {
-            console.error('Error calculating pulse:', error);
+            console.error('❌ [API] Critical error in pulse route:', error);
             res.status(500).json({ error: 'Failed to calculate strategic pulse' });
         }
     }
@@ -66,7 +96,7 @@ router.get(
 router.get(
     '/teams/:teamId/pulse/history',
     authenticateUser,
-    requireTeamAccess,
+    requireTeamAccess('viewer'),
     async (req: Request, res: Response): Promise<void> => {
         try {
             const { teamId } = req.params;
@@ -94,7 +124,7 @@ router.get(
 router.get(
     '/teams/:teamId/dna',
     authenticateUser,
-    requireTeamAccess,
+    requireTeamAccess('viewer'),
     async (req: Request, res: Response): Promise<void> => {
         try {
             const { teamId } = req.params;
@@ -116,10 +146,10 @@ router.get(
 
             // Fetch all decisions for the team
             const { data: decisions, error } = await supabase
-                .from('cme_decisions')
+                .from('decisions')
                 .select('*')
                 .eq('team_id', teamId)
-                .order('timestamp', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (error) {
                 console.error('Error fetching decisions for DNA:', error);
@@ -153,7 +183,7 @@ router.get(
 router.get(
     '/teams/:teamId/intelligence',
     authenticateUser,
-    requireTeamAccess,
+    requireTeamAccess('viewer'),
     async (req: Request, res: Response): Promise<void> => {
         try {
             const { teamId } = req.params;
@@ -161,10 +191,10 @@ router.get(
 
             // Fetch all decisions
             const { data: decisions, error } = await supabase
-                .from('cme_decisions')
+                .from('decisions')
                 .select('*')
                 .eq('team_id', teamId)
-                .order('timestamp', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (error) {
                 console.error('Error fetching decisions:', error);
@@ -177,6 +207,13 @@ router.get(
                 strategicPulseService.calculatePulse(decisions || []),
                 strategicDNAService.calculateDNA(decisions || [])
             ]);
+
+            // Store snapshots (async, don't wait)
+            // This ensures data is captured when users view the dashboard
+            Promise.all([
+                strategicPulseService.storePulse(supabase, teamId, pulse),
+                strategicDNAService.storeDNA(supabase, teamId, dna)
+            ]).catch(err => console.error('Failed to background store intelligence:', err));
 
             // Generate executive summary
             const summary = generateExecutiveSummary(pulse, dna, decisions?.length || 0);
@@ -205,39 +242,57 @@ router.get(
 router.get(
     '/teams/:teamId/risks',
     authenticateUser,
-    requireTeamAccess,
+    requireTeamAccess('viewer'),
     async (req: Request, res: Response): Promise<void> => {
+        const { teamId } = req.params;
+        console.log(`🔍 [API] GET /teams/${teamId}/risks - Request started`);
+
         try {
-            const { teamId } = req.params;
             const supabase = supabaseService.client;
 
             // Fetch decisions
+            console.log(`📦 [API] Fetching decisions for risks...`);
             const { data: decisions, error } = await supabase
-                .from('cme_decisions')
+                .from('decisions')
                 .select('*')
                 .eq('team_id', teamId)
-                .order('timestamp', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (error) {
-                console.error('Error fetching decisions for risks:', error);
+                console.error('❌ [API] Error fetching decisions for risks:', error);
                 res.status(500).json({ error: 'Failed to fetch decisions' });
                 return;
             }
+            console.log(`📦 [API] Fetched ${decisions?.length || 0} decisions.`);
 
             // Scan for risks
-            const riskResult = await riskRadarService.scanRisks(decisions || []);
+            console.log(`⚙️ [API] Scanning risks logic...`);
+            try {
+                const riskResult = await riskRadarService.scanRisks(decisions || []);
+                console.log(`✅ [API] Risk scan complete. Score: ${riskResult.riskScore}`);
 
-            // Store risk signals (async)
-            riskRadarService.storeRiskScan(supabase, teamId, riskResult).catch(console.error);
+                // Store risk signals (async)
+                console.log(`💾 [API] Storing risk scan (async)...`);
+                riskRadarService.storeRiskScan(supabase, teamId, riskResult).catch(err => {
+                    console.error('⚠️ [API] Failed to background store risk scan:', err);
+                });
 
-            res.json({
-                success: true,
-                ...riskResult,
-                scannedAt: new Date().toISOString()
-            });
-        } catch (error) {
-            console.error('Error scanning risks:', error);
-            res.status(500).json({ error: 'Failed to scan for risks' });
+                res.json({
+                    success: true,
+                    ...riskResult,
+                    scannedAt: new Date().toISOString()
+                });
+                console.log(`🚀 [API] Risks response sent.`);
+            } catch (scanErr: any) {
+                console.error('❌ [API] scanRisks threw error:', scanErr);
+                console.error('Stack:', scanErr.stack);
+                throw scanErr;
+            }
+
+        } catch (error: any) {
+            console.error('❌ [API] Error scanning risks:', error);
+            console.error('Stack:', error.stack);
+            res.status(500).json({ error: 'Failed to scan for risks', details: error.message });
         }
     }
 );
@@ -249,38 +304,91 @@ router.get(
 router.get(
     '/teams/:teamId/briefing',
     authenticateUser,
-    requireTeamAccess,
+    requireTeamAccess('viewer'),
     async (req: Request, res: Response): Promise<void> => {
+        const { teamId } = req.params;
+        console.log(`🔍 [API] GET /teams/${teamId}/briefing - Request started`);
+
         try {
-            const { teamId } = req.params;
             const supabase = supabaseService.client;
 
-            // Fetch decisions
+            // 1. Try to get cached briefing first (fast path)
+            console.log(`🔍 [API] Checking for cached Briefing...`);
+            let cachedBriefing = null;
+            try {
+                cachedBriefing = await executiveBriefingService.getCachedBriefing(teamId);
+                console.log(`✅ [API] Cache check result: ${cachedBriefing ? 'HIT' : 'MISS'}`);
+            } catch (cacheErr) {
+                console.warn('⚠️ [API] Cache check failed, ignoring:', cacheErr);
+            }
+
+            if (cachedBriefing) {
+                console.log(`✅ [API] Cached Briefing found. Serving immediately.`);
+                res.json({
+                    success: true,
+                    briefing: cachedBriefing
+                });
+                return;
+            }
+            console.log(`⚠️ [API] No cached Briefing found. Proceeding to generate.`);
+
+            // 2. Fetch decisions only if no cache
+            console.log(`📦 [API] Fetching decisions for briefing generation...`);
             const { data: decisions, error } = await supabase
-                .from('cme_decisions')
+                .from('decisions')
                 .select('*')
                 .eq('team_id', teamId)
-                .order('timestamp', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (error) {
-                console.error('Error fetching decisions for briefing:', error);
+                console.error('❌ [API] Error fetching decisions:', error);
                 res.status(500).json({ error: 'Failed to fetch decisions' });
                 return;
             }
+            console.log(`📦 [API] Fetched ${decisions?.length || 0} decisions.`);
 
-            // Generate briefing
-            const briefing = await executiveBriefingService.generateBriefing(decisions || []);
+            // If no decisions, return empty briefing
+            if (!decisions || decisions.length === 0) {
+                console.log('⚠️ [API] No decisions found. Returning empty briefing template.');
+                res.json({
+                    success: true,
+                    briefing: {
+                        generatedAt: new Date().toISOString(),
+                        executiveSummary: 'No decisions have been uploaded yet. Upload documents to generate your first briefing.',
+                        sections: [],
+                        recommendations: ['Upload documents via the Auditor page to get started'],
+                        focusAreas: ['Document upload', 'Team onboarding']
+                    }
+                });
+                return;
+            }
 
-            // Store briefing (async)
-            executiveBriefingService.storeBriefing(supabase, teamId, briefing).catch(console.error);
+            // Generate briefing (handles caching and storage internally)
+            console.log('⚙️ [API] Calling executiveBriefingService.generateBriefing...');
+            try {
+                const briefing = await executiveBriefingService.generateBriefing(teamId, decisions || []);
+                console.log('✅ [API] Briefing generation complete.');
 
-            res.json({
-                success: true,
-                briefing
-            });
-        } catch (error) {
-            console.error('Error generating briefing:', error);
-            res.status(500).json({ error: 'Failed to generate executive briefing' });
+                res.json({
+                    success: true,
+                    briefing: {
+                        generatedAt: briefing.generatedAt,
+                        executiveSummary: briefing.executiveSummary,
+                        sections: briefing.sections,
+                        recommendations: briefing.recommendations,
+                        focusAreas: briefing.focusAreas
+                    }
+                });
+                console.log(`🚀 [API] Briefing response sent.`);
+            } catch (genError) {
+                console.error('❌ [API] generateBriefing threw error:', genError);
+                throw genError; // Re-throw to be caught by outer catch
+            }
+
+        } catch (error: any) {
+            console.error('❌ [API] Critical error in briefing route:', error);
+            console.error('Stack:', error.stack);
+            res.status(500).json({ error: 'Failed to generate executive briefing', details: error.message });
         }
     }
 );
@@ -292,7 +400,7 @@ router.get(
 router.get(
     '/teams/:teamId/benchmarks',
     authenticateUser,
-    requireTeamAccess,
+    requireTeamAccess('viewer'),
     async (req: Request, res: Response): Promise<void> => {
         try {
             const { teamId } = req.params;
@@ -300,10 +408,10 @@ router.get(
 
             // Fetch decisions
             const { data: decisions, error: decisionsError } = await supabase
-                .from('cme_decisions')
+                .from('decisions')
                 .select('*')
                 .eq('team_id', teamId)
-                .order('timestamp', { ascending: false });
+                .order('created_at', { ascending: false });
 
             if (decisionsError) {
                 console.error('Error fetching decisions for benchmarks:', decisionsError);

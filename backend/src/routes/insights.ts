@@ -64,7 +64,7 @@ router.get(
             const decisions = await supabaseService.getDecisions(teamId, 50, 0);
 
             // Generate AI summary
-            const summary = await insightsService.getAISummary(decisions);
+            const summary = await insightsService.getAISummary(teamId, decisions);
 
             res.json({
                 success: true,

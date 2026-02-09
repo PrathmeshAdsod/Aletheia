@@ -40,6 +40,7 @@ export async function authenticateUser(
         // Extract token from Authorization header
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('❌ [Auth] No token provided');
             res.status(401).json({ error: 'No authentication token provided' });
             return;
         }
@@ -81,9 +82,12 @@ export function requireTeamAccess(minRole?: 'admin' | 'member' | 'viewer') {
             }
 
             if (!teamId) {
+                console.log('❌ [Auth] Team ID missing in request params');
                 res.status(400).json({ error: 'Team ID required' });
                 return;
             }
+
+            console.log(`🔐 [Auth] Checking access for user ${userId} to team ${teamId}`);
 
             // Check team membership
             const { data: membership, error } = await supabase

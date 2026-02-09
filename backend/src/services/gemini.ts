@@ -1,9 +1,15 @@
 /**
- * Google Gemini 3 Service
+ * Google Gemini Service
  *
  * Models used:
- * - gemini-3-flash : fast + cheap initial cluster extraction
- * - gemini-3-pro   : structured CME decision extraction + Oracle RAG
+ * - gemini-2.5-flash-lite : Currently active (rate limit friendly)
+ * - gemini-3-flash-preview : Target model (switch when rate limits allow)
+ * - gemini-1.5-flash : Oracle queries (stable)
+ *
+ * MODEL COMPATIBILITY:
+ * This service is designed to work with both gemini-2.5-flash-lite and gemini-3-flash-preview.
+ * To switch models, simply replace 'gemini-2.5-flash-lite' with 'gemini-3-flash-preview' in the
+ * generateContent calls below. The text extraction logic handles both SDK response formats.
  *
  * IMPORTANT:
  * - All secrets MUST come from .env
@@ -31,10 +37,20 @@ class GeminiService {
     private extractText(response: any): string {
         if (!response) return '';
 
-        // SDK variants differ — try all known shapes
+        // Try direct text property first
         if (typeof response.text === 'string') return response.text;
         if (typeof response.outputText === 'string') return response.outputText;
 
+        // Try response.response.text (common in newer SDK versions)
+        if (response.response && typeof response.response.text === 'function') {
+            try {
+                return response.response.text();
+            } catch (e) {
+                console.warn('Failed to call response.text():', e);
+            }
+        }
+
+        // Try candidates array structure
         if (Array.isArray(response.candidates)) {
             const content = response.candidates[0]?.content;
             if (typeof content === 'string') return content;
@@ -43,12 +59,23 @@ class GeminiService {
             }
         }
 
-        // Last resort
-        return JSON.stringify(response);
+        // Try response.response.candidates
+        if (response.response && Array.isArray(response.response.candidates)) {
+            const content = response.response.candidates[0]?.content;
+            if (typeof content === 'string') return content;
+            if (Array.isArray(content?.parts)) {
+                return content.parts.map((p: any) => p.text || '').join('');
+            }
+        }
+
+        console.warn('Could not extract text from Gemini response, structure:', JSON.stringify(response).substring(0, 200));
+        return '';
     }
 
     // --------------------------------------------------
-    // Phase 1: Fast cluster extraction (Gemini 3 Flash)
+    // Phase 1: Fast cluster extraction
+    // Currently using gemini-2.5-flash-lite (rate limit friendly)
+    // Can be switched to gemini-3-flash-preview when available
     // --------------------------------------------------
     async extractClusters(text: string): Promise<string[]> {
         const prompt = `
@@ -69,21 +96,32 @@ RULES:
 - No explanations
 `;
 
-        const response = await this.ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt
-        });
+        try {
+            const response = await this.ai.models.generateContent({
+                model: 'gemini-2.5-flash-lite',
+                contents: prompt
+            });
 
-        const rawText = this.extractText(response);
+            const rawText = this.extractText(response);
+            if (!rawText) {
+                console.warn('⚠️ Empty response from Gemini cluster extraction');
+                return [];
+            }
 
-        return rawText
-            .split('\n')
-            .map(line => line.trim())
-            .filter(Boolean);
+            return rawText
+                .split('\n')
+                .map(line => line.trim())
+                .filter(Boolean);
+        } catch (error) {
+            console.error('❌ Gemini cluster extraction failed:', error);
+            return [];
+        }
     }
 
     // --------------------------------------------------
-    // Phase 2: Structured CME extraction (Gemini 3 Pro)
+    // Phase 2: Structured CME extraction
+    // Currently using gemini-2.5-flash-lite (rate limit friendly)
+    // Can be switched to gemini-3-flash-preview when available
     // --------------------------------------------------
 
     /**
@@ -143,17 +181,22 @@ Clusters:
 ${clusters.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 `;
 
-        const response = await this.ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt
-        });
-
-        let rawText = this.extractText(response)
-            .replace(/```json/gi, '')
-            .replace(/```/g, '')
-            .trim();
-
         try {
+            const response = await this.ai.models.generateContent({
+                model: 'gemini-2.5-flash-lite',
+                contents: prompt
+            });
+
+            let rawText = this.extractText(response)
+                .replace(/```json/gi, '')
+                .replace(/```/g, '')
+                .trim();
+
+            if (!rawText) {
+                console.error('❌ Empty response from Gemini decision extraction');
+                return [];
+            }
+
             const parsed = JSON.parse(rawText);
 
             if (!Array.isArray(parsed)) {
@@ -187,9 +230,7 @@ ${clusters.map((c, i) => `${i + 1}. ${c}`).join('\n')}
                 } as CMEDecision;
             });
         } catch (error) {
-            console.error('❌ Gemini Pro JSON parse failed');
-            console.error('Raw response:', rawText);
-            console.error(error);
+            console.error('❌ Gemini decision extraction failed:', error);
             return [];
         }
     }
@@ -259,17 +300,25 @@ Answer format:
 "According to decision [abc12345], ..."
 `;
 
-        const response = await this.ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: prompt
-        });
+        try {
+            const response = await this.ai.models.generateContent({
+                model: 'gemini-1.5-flash',
+                contents: prompt
+            });
 
-        const answer = this.extractText(response);
+            const answer = this.extractText(response);
+            if (!answer) {
+                return { error: 'No response from AI' };
+            }
 
-        return {
-            answer,
-            citations: relevantDecisions.map(d => d.decision_id)
-        };
+            return {
+                answer,
+                citations: relevantDecisions.map(d => d.decision_id)
+            };
+        } catch (error) {
+            console.error('❌ Oracle query failed:', error);
+            return { error: 'Failed to query Oracle' };
+        }
     }
 
     // --------------------------------------------------
@@ -305,21 +354,35 @@ User's message: ${message}
 
 Respond naturally while incorporating relevant context from the team's decisions when applicable:`;
 
-        const response = await this.ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
-            contents: systemPrompt
-        });
+        try {
+            const response = await this.ai.models.generateContent({
+                model: 'gemini-2.5-flash-lite',
+                contents: systemPrompt
+            });
 
-        const responseText = this.extractText(response);
+            const responseText = this.extractText(response);
+            if (!responseText) {
+                return {
+                    response: 'I apologize, but I encountered an issue generating a response. Please try again.',
+                    sources: []
+                };
+            }
 
-        // Extract source references from context (decision numbers mentioned)
-        const sourceMatches = responseText.match(/\[#?\d+\]/g) || [];
-        const sources = [...new Set(sourceMatches.map(s => s.replace(/\[#?|\]/g, '')))];
+            // Extract source references from context (decision numbers mentioned)
+            const sourceMatches = responseText.match(/\[#?\d+\]/g) || [];
+            const sources = [...new Set(sourceMatches.map(s => s.replace(/\[#?|\]/g, '')))];
 
-        return {
-            response: responseText,
-            sources
-        };
+            return {
+                response: responseText,
+                sources
+            };
+        } catch (error) {
+            console.error('❌ Chat failed:', error);
+            return {
+                response: 'I apologize, but I encountered an error. Please try again.',
+                sources: []
+            };
+        }
     }
 }
 

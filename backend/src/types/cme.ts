@@ -63,6 +63,7 @@ export interface ConflictFlag {
 
 export interface JobStatus {
     job_id: string;
+    team_id?: string;
     status: 'queued' | 'processing' | 'completed' | 'failed';
     progress: number;              // 0-100
     file_hash: string;

@@ -30,6 +30,9 @@ import { Card } from '@/components/Card';
 import { HealthDashboard } from '@/components/HealthScores';
 import { StrategicPulse } from '@/components/StrategicPulse';
 import { StrategicDNA } from '@/components/StrategicDNA';
+import { RiskRadar } from '@/components/RiskRadar';
+import { ExecutiveBriefing } from '@/components/ExecutiveBriefing';
+import { TeamBenchmarks } from '@/components/TeamBenchmarks';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { metricsApi } from '@/lib/team-api';
@@ -213,111 +216,27 @@ export default function CommandCenter() {
                 </div>
             </div>
 
-            {/* STRATEGIC INTELLIGENCE - PULSE & DNA */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <StrategicPulse />
-                <StrategicDNA />
-            </div>
+            {/* STRATEGIC INTELLIGENCE GRID */}
+            {selectedTeam && (
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {/* Column 1: Health & Risk */}
+                    <div className="space-y-6">
+                        <StrategicPulse />
+                        <RiskRadar teamId={selectedTeam.team.id} />
+                    </div>
 
-            {/* PROACTIVE AI INSIGHTS - NEW SECTION */}
-            <Card className="p-0 overflow-hidden bg-gradient-to-br from-primary/5 via-surface to-surface">
-                <div className="p-6 border-b border-border">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2 bg-primary-light rounded-lg">
-                                <Brain className="w-5 h-5 text-primary" />
-                            </div>
-                            <div>
-                                <h2 className="text-h3 text-text-primary">AI Insights</h2>
-                                <p className="text-meta text-text-tertiary">Proactive recommendations for your team</p>
-                            </div>
-                        </div>
-                        <a
-                            href="/dashboard/chat"
-                            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-small font-medium transition-colors"
-                        >
-                            <Sparkles className="w-4 h-4" />
-                            Ask AI
-                        </a>
+                    {/* Column 2: Executive Intelligence */}
+                    <div className="space-y-6">
+                        <ExecutiveBriefing teamId={selectedTeam.team.id} />
+                    </div>
+
+                    {/* Column 3: Identity & Benchmarks */}
+                    <div className="space-y-6">
+                        <StrategicDNA />
+                        <TeamBenchmarks teamId={selectedTeam.team.id} />
                     </div>
                 </div>
-
-                <div className="p-6">
-                    {/* AI Summary */}
-                    {aiSummary && (
-                        <div className="mb-6 p-4 bg-surface rounded-xl border border-border">
-                            <div className="flex items-start gap-3">
-                                <Lightbulb className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-                                <div className="flex-1">
-                                    <p className="text-small text-text-primary mb-3">{aiSummary.summary}</p>
-
-                                    {aiSummary.topPriorities.length > 0 && (
-                                        <div className="mb-3">
-                                            <p className="text-meta text-text-tertiary mb-2 uppercase tracking-wider">Top Priorities</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {aiSummary.topPriorities.map((p, i) => (
-                                                    <span key={i} className="px-3 py-1 bg-primary-light text-primary text-meta rounded-full">
-                                                        {p}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {aiSummary.suggestedFocus && (
-                                        <div className="p-3 bg-aligned-light rounded-lg">
-                                            <p className="text-meta text-text-tertiary mb-1 uppercase tracking-wider">Suggested Focus</p>
-                                            <p className="text-small text-aligned">{aiSummary.suggestedFocus}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Proactive Insights */}
-                    {insightsLoading ? (
-                        <div className="flex items-center justify-center py-8">
-                            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                        </div>
-                    ) : insights.length > 0 ? (
-                        <div className="space-y-3">
-                            {insights.slice(0, 3).map((insight) => (
-                                <div
-                                    key={insight.id}
-                                    className={`p-4 rounded-lg border-l-4 ${getSeverityStyles(insight.severity)}`}
-                                >
-                                    <div className="flex items-start justify-between">
-                                        <div className="flex-1">
-                                            <h4 className="text-small font-medium text-text-primary mb-1">{insight.title}</h4>
-                                            <p className="text-meta text-text-secondary">{insight.description}</p>
-                                            {insight.suggestedAction && (
-                                                <p className="text-meta text-primary mt-2">
-                                                    💡 {insight.suggestedAction}
-                                                </p>
-                                            )}
-                                        </div>
-                                        <span className={`px-2 py-1 rounded-full text-meta font-medium ${insight.severity === 'critical' ? 'bg-red-200 text-red-800' :
-                                            insight.severity === 'high' ? 'bg-orange-200 text-orange-800' :
-                                                insight.severity === 'medium' ? 'bg-yellow-200 text-yellow-800' :
-                                                    'bg-blue-200 text-blue-800'
-                                            }`}>
-                                            {insight.severity}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-8">
-                            <Sparkles className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
-                            <p className="text-small text-text-secondary">
-                                No urgent insights right now. Your team is on track!
-                            </p>
-                        </div>
-                    )}
-                </div>
-            </Card>
+            )}
 
             {/* Tier 1: Health Scores Section */}
             <Card className="p-8">

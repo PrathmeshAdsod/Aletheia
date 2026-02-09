@@ -42,6 +42,14 @@ export interface RiskRadarResult {
     overallRisk: 'low' | 'medium' | 'high' | 'critical';
     riskScore: number; // 0-100
     signals: RiskSignal[];
+    activeDetectors: {
+        philosophicalDrift: boolean;
+        decisionDecay: boolean;
+        actorOverload: boolean;
+        blindSpots: boolean;
+        hiddenTensions: boolean;
+        reversalPatterns: boolean;
+    };
     summary: string;
 }
 
@@ -56,6 +64,14 @@ export class RiskRadarService {
                 overallRisk: 'low',
                 riskScore: 0,
                 signals: [],
+                activeDetectors: {
+                    philosophicalDrift: false,
+                    decisionDecay: false,
+                    actorOverload: false,
+                    blindSpots: false,
+                    hiddenTensions: false,
+                    reversalPatterns: false
+                },
                 summary: 'No decisions to analyze yet.'
             };
         }
@@ -63,12 +79,23 @@ export class RiskRadarService {
         const signals: RiskSignal[] = [];
 
         // Run all detectors
-        signals.push(...this.detectPhilosophicalDrift(decisions));
-        signals.push(...this.detectDecisionDecay(decisions));
-        signals.push(...this.detectActorOverload(decisions));
-        signals.push(...this.detectBlindSpots(decisions));
-        signals.push(...this.detectHiddenTensions(decisions));
-        signals.push(...this.detectReversalPatterns(decisions));
+        const driftSignals = this.detectPhilosophicalDrift(decisions);
+        signals.push(...driftSignals);
+
+        const decaySignals = this.detectDecisionDecay(decisions);
+        signals.push(...decaySignals);
+
+        const overloadSignals = this.detectActorOverload(decisions);
+        signals.push(...overloadSignals);
+
+        const blindSpotSignals = this.detectBlindSpots(decisions);
+        signals.push(...blindSpotSignals);
+
+        const tensionSignals = this.detectHiddenTensions(decisions);
+        signals.push(...tensionSignals);
+
+        const reversalSignals = this.detectReversalPatterns(decisions);
+        signals.push(...reversalSignals);
 
         // Sort by severity
         const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
@@ -85,6 +112,14 @@ export class RiskRadarService {
             overallRisk,
             riskScore,
             signals,
+            activeDetectors: {
+                philosophicalDrift: driftSignals.length > 0,
+                decisionDecay: decaySignals.length > 0,
+                actorOverload: overloadSignals.length > 0,
+                blindSpots: blindSpotSignals.length > 0,
+                hiddenTensions: tensionSignals.length > 0,
+                reversalPatterns: reversalSignals.length > 0
+            },
             summary
         };
     }
@@ -110,8 +145,8 @@ export class RiskRadarService {
         // Find core decisions from older period
         const coreDecisions = olderDecisions.filter(d =>
             coreValueKeywords.some(k =>
-                d.decision.toLowerCase().includes(k) ||
-                d.reasoning.toLowerCase().includes(k)
+                (d.decision || '').toLowerCase().includes(k) ||
+                (d.reasoning || '').toLowerCase().includes(k)
             )
         );
 
@@ -119,8 +154,8 @@ export class RiskRadarService {
         for (const recent of recentDecisions) {
             for (const core of coreDecisions) {
                 // Simple contradiction check: same topic but opposite sentiment
-                const recentText = `${recent.decision} ${recent.reasoning}`.toLowerCase();
-                const coreText = `${core.decision} ${core.reasoning}`.toLowerCase();
+                const recentText = `${recent.decision || ''} ${recent.reasoning || ''}`.toLowerCase();
+                const coreText = `${core.decision || ''} ${core.reasoning || ''}`.toLowerCase();
 
                 // Check for negation patterns
                 const contradictionPatterns = [
@@ -143,8 +178,8 @@ export class RiskRadarService {
                             title: 'Philosophical Drift Detected',
                             description: `Recent decision may contradict earlier core principle`,
                             evidence: [
-                                { decisionId: core.decision_id, description: `Core: "${core.decision.slice(0, 50)}..."` },
-                                { decisionId: recent.decision_id, description: `Recent: "${recent.decision.slice(0, 50)}..."` }
+                                { decisionId: core.decision_id, description: `Core: "${(core.decision || '').slice(0, 50)}..."` },
+                                { decisionId: recent.decision_id, description: `Recent: "${(recent.decision || '').slice(0, 50)}..."` }
                             ],
                             suggestedAction: 'Review alignment between recent decisions and core principles',
                             detectedAt: new Date().toISOString()
@@ -173,12 +208,12 @@ export class RiskRadarService {
         );
 
         const staleDecisions = strategicDecisions.filter(d => {
-            const decisionDate = new Date(d.timestamp || d.created_at);
+            const decisionDate = new Date(d.timestamp || d.created_at || now);
             return decisionDate < thirtyDaysAgo;
         });
 
         const veryStaleDecisions = strategicDecisions.filter(d => {
-            const decisionDate = new Date(d.timestamp || d.created_at);
+            const decisionDate = new Date(d.timestamp || d.created_at || now);
             return decisionDate < sixtyDaysAgo;
         });
 
@@ -191,7 +226,7 @@ export class RiskRadarService {
                 description: `Critical/strategic decisions over 60 days old may need reassessment`,
                 evidence: veryStaleDecisions.slice(0, 3).map(d => ({
                     decisionId: d.decision_id,
-                    description: `"${d.decision.slice(0, 40)}..." (${d.importance})`
+                    description: `"${(d.decision || '').slice(0, 40)}..." (${d.importance})`
                 })),
                 suggestedAction: 'Schedule strategic review session to validate these decisions',
                 detectedAt: new Date().toISOString()
@@ -205,7 +240,7 @@ export class RiskRadarService {
                 description: `Strategic decisions over 30 days old - consider review`,
                 evidence: staleDecisions.slice(0, 3).map(d => ({
                     decisionId: d.decision_id,
-                    description: `"${d.decision.slice(0, 40)}..."`
+                    description: `"${(d.decision || '').slice(0, 40)}..."`
                 })),
                 suggestedAction: 'Plan upcoming review of strategic decisions',
                 detectedAt: new Date().toISOString()
@@ -225,7 +260,7 @@ export class RiskRadarService {
         const now = new Date();
         const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         const recentDecisions = decisions.filter(d =>
-            new Date(d.timestamp || d.created_at) >= thirtyDaysAgo
+            new Date(d.timestamp || d.created_at || now) >= thirtyDaysAgo
         );
 
         if (recentDecisions.length < 5) return signals;
@@ -233,11 +268,12 @@ export class RiskRadarService {
         // Count decisions by actor
         const actorCounts = new Map<string, number>();
         recentDecisions.forEach(d => {
-            actorCounts.set(d.actor, (actorCounts.get(d.actor) || 0) + 1);
+            const actor = d.actor || 'Unknown Actor';
+            actorCounts.set(actor, (actorCounts.get(actor) || 0) + 1);
         });
 
         const sortedActors = [...actorCounts.entries()].sort((a, b) => b[1] - a[1]);
-        const [topActor, topCount] = sortedActors[0] || ['', 0];
+        const [topActor, topCount] = sortedActors[0] || ['Unknown Actor', 0];
         const percentage = (topCount / recentDecisions.length) * 100;
 
         if (percentage > 70) {
@@ -298,7 +334,7 @@ export class RiskRadarService {
         const now = new Date();
         const ninetyDaysAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
         const recentDecisions = decisions.filter(d =>
-            new Date(d.timestamp || d.created_at) >= ninetyDaysAgo
+            new Date(d.timestamp || d.created_at || now) >= ninetyDaysAgo
         );
 
         if (recentDecisions.length < 10) return signals;
@@ -307,7 +343,7 @@ export class RiskRadarService {
 
         for (const area of strategicAreas) {
             const areaDecisions = recentDecisions.filter(d => {
-                const text = `${d.decision} ${d.reasoning}`.toLowerCase();
+                const text = `${d.decision || ''} ${d.reasoning || ''}`.toLowerCase();
                 return area.keywords.some(k => text.includes(k));
             });
 
@@ -368,9 +404,12 @@ export class RiskRadarService {
             const d1 = conflictDecisions[i];
             const d2 = conflictDecisions[i + 1];
 
+            const actor1 = d1.actor || 'Unknown';
+            const actor2 = d2.actor || 'Unknown';
+
             // If different actors have conflicts close together
-            if (d1.actor !== d2.actor) {
-                const key = [d1.actor, d2.actor].sort().join('|');
+            if (actor1 !== actor2) {
+                const key = [actor1, actor2].sort().join('|');
                 const count = actorConflicts.get(key)?.get('count') || 0;
 
                 if (!actorConflicts.has(key)) {
@@ -415,7 +454,7 @@ export class RiskRadarService {
         ];
 
         const reversalDecisions = decisions.filter(d => {
-            const text = `${d.decision} ${d.reasoning}`.toLowerCase();
+            const text = `${d.decision || ''} ${d.reasoning || ''}`.toLowerCase();
             return reversalKeywords.some(k => text.includes(k));
         });
 
@@ -430,7 +469,7 @@ export class RiskRadarService {
                 description: `${Math.round(reversalRate * 100)}% of decisions involve reversals`,
                 evidence: reversalDecisions.slice(0, 3).map(d => ({
                     decisionId: d.decision_id,
-                    description: `"${d.decision.slice(0, 40)}..."`
+                    description: `"${(d.decision || '').slice(0, 40)}..."`
                 })),
                 suggestedAction: 'Improve decision-making process to reduce churn',
                 detectedAt: new Date().toISOString()
@@ -444,7 +483,7 @@ export class RiskRadarService {
                 description: `${reversalDecisions.length} decisions involve reversals`,
                 evidence: reversalDecisions.slice(0, 2).map(d => ({
                     decisionId: d.decision_id,
-                    description: `"${d.decision.slice(0, 40)}..."`
+                    description: `"${(d.decision || '').slice(0, 40)}..."`
                 })),
                 suggestedAction: 'Review decision criteria to prevent frequent reversals',
                 detectedAt: new Date().toISOString()

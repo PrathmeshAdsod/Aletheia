@@ -101,7 +101,7 @@ export class StrategicDNAService {
         let conservativeScore = 0;
 
         decisions.forEach(d => {
-            const text = `${d.decision} ${d.reasoning}`.toLowerCase();
+            const text = `${d.decision || ''} ${d.reasoning || ''}`.toLowerCase();
 
             aggressiveKeywords.forEach(k => {
                 if (text.includes(k)) aggressiveScore++;
@@ -131,7 +131,8 @@ export class StrategicDNAService {
         const actorCounts = new Map<string, number>();
 
         decisions.forEach(d => {
-            actorCounts.set(d.actor, (actorCounts.get(d.actor) || 0) + 1);
+            const actor = d.actor || 'Unknown';
+            actorCounts.set(actor, (actorCounts.get(actor) || 0) + 1);
         });
 
         const actors = [...actorCounts.entries()];
@@ -175,7 +176,7 @@ export class StrategicDNAService {
         let avoidantScore = 0;
 
         decisions.forEach(d => {
-            const text = `${d.decision} ${d.reasoning}`.toLowerCase();
+            const text = `${d.decision || ''} ${d.reasoning || ''}`.toLowerCase();
 
             conflictKeywords.forEach(k => {
                 if (text.includes(k)) embracingScore++;
@@ -213,7 +214,7 @@ export class StrategicDNAService {
         let stabilityScore = 0;
 
         decisions.forEach(d => {
-            const text = `${d.decision} ${d.reasoning}`.toLowerCase();
+            const text = `${d.decision || ''} ${d.reasoning || ''}`.toLowerCase();
 
             innovationKeywords.forEach(k => {
                 if (text.includes(k)) innovationScore++;
@@ -244,7 +245,7 @@ export class StrategicDNAService {
         let reversalCount = 0;
 
         decisions.forEach(d => {
-            const text = `${d.decision} ${d.reasoning}`.toLowerCase();
+            const text = `${d.decision || ''} ${d.reasoning || ''}`.toLowerCase();
             reversalKeywords.forEach(k => {
                 if (text.includes(k)) reversalCount++;
             });
@@ -266,10 +267,14 @@ export class StrategicDNAService {
     private calculateSentimentVolatility(decisions: CMEDecision[]): number {
         if (decisions.length < 2) return 0;
 
-        const sorted = [...decisions].sort((a, b) =>
-            new Date(a.timestamp || a.created_at).getTime() -
-            new Date(b.timestamp || b.created_at).getTime()
-        );
+        const sorted = [...decisions]
+            .filter(d => d && (d.timestamp || d.created_at))
+            .sort((a, b) =>
+                new Date(a.timestamp || a.created_at).getTime() -
+                new Date(b.timestamp || b.created_at).getTime()
+            );
+
+        if (sorted.length < 2) return 0;
 
         let changes = 0;
         for (let i = 1; i < sorted.length; i++) {
@@ -410,6 +415,8 @@ export class StrategicDNAService {
 
         if (error) {
             console.error('Failed to store DNA snapshot:', error);
+        } else {
+            console.log('✅ Stored new Strategic DNA snapshot');
         }
     }
 

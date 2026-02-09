@@ -8,7 +8,7 @@
  * Uses smart retrieval for token-efficient context injection
  */
 
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, RequestHandler } from 'express';
 import { authenticateUser, requireTeamAccess } from '../middleware/auth';
 import { supabaseService } from '../services/supabase';
 import { geminiService } from '../services/gemini';
@@ -35,7 +35,7 @@ router.post(
     '/teams/:teamId/chat',
     authenticateUser,
     requireTeamAccess('viewer'),
-    async (req: Request, res: Response) => {
+    (async (req: Request, res: Response) => {
         try {
             const teamId = req.teamId!;
             const userId = req.userId!;
@@ -70,7 +70,7 @@ router.post(
             // 5. Store AI response
             const aiMessage = await storeMessage(teamId, null, 'assistant', aiResult.response, aiResult.sources);
 
-            res.json({
+            return res.json({
                 success: true,
                 userMessage,
                 assistantMessage: aiMessage,
@@ -81,11 +81,11 @@ router.post(
             });
         } catch (error) {
             console.error('Chat error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 error: error instanceof Error ? error.message : 'Chat failed'
             });
         }
-    }
+    }) as unknown as RequestHandler
 );
 
 /**
@@ -96,25 +96,25 @@ router.get(
     '/teams/:teamId/chat/history',
     authenticateUser,
     requireTeamAccess('viewer'),
-    async (req: Request, res: Response) => {
+    (async (req: Request, res: Response) => {
         try {
             const teamId = req.teamId!;
             const limit = parseInt(req.query.limit as string || '50', 10);
 
             const messages = await getConversationHistory(teamId, limit);
 
-            res.json({
+            return res.json({
                 success: true,
                 messages,
                 count: messages.length
             });
         } catch (error) {
             console.error('Get chat history error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 error: error instanceof Error ? error.message : 'Failed to get chat history'
             });
         }
-    }
+    }) as unknown as RequestHandler
 );
 
 /**
@@ -126,23 +126,23 @@ router.delete(
     '/teams/:teamId/chat/clear',
     authenticateUser,
     requireTeamAccess('admin'),
-    async (req: Request, res: Response) => {
+    (async (req: Request, res: Response) => {
         try {
             const teamId = req.teamId!;
 
             await clearConversation(teamId);
 
-            res.json({
+            return res.json({
                 success: true,
                 message: 'Conversation history cleared'
             });
         } catch (error) {
             console.error('Clear chat error:', error);
-            res.status(500).json({
+            return res.status(500).json({
                 error: error instanceof Error ? error.message : 'Failed to clear chat history'
             });
         }
-    }
+    }) as unknown as RequestHandler
 );
 
 // ===========================================

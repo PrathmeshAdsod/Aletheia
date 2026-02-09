@@ -12,6 +12,7 @@
 
 import { CMEDecision } from '../types/cme';
 import { geminiService } from './gemini';
+import { supabaseService } from './supabase';
 
 // Insight types for different proactive suggestions
 export type InsightType =
@@ -234,11 +235,38 @@ class ProactiveInsightsService {
     /**
      * Get AI-generated summary and recommendations
      */
-    async getAISummary(decisions: CMEDecision[]): Promise<{
+    /**
+     * Get AI-generated summary and recommendations
+     * Cached for 12 hours to prevent quota exhaustion
+     */
+    async getAISummary(teamId: string, decisions: CMEDecision[]): Promise<{
         summary: string;
         topPriorities: string[];
         suggestedFocus: string;
     }> {
+        // 1. Check cache (Supabase)
+        try {
+            const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
+
+            const { data: cached } = await supabaseService.client
+                .from('proactive_insights')
+                .select('evidence, created_at')
+                .eq('team_id', teamId)
+                .eq('category', 'ai_summary')
+                .gte('created_at', twelveHoursAgo)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .single();
+
+            if (cached && cached.evidence) {
+                console.log('✅ Serving cached AI summary');
+                return cached.evidence as any;
+            }
+        } catch (err) {
+            // Ignore cache errors, proceed to generate
+            console.warn('Cache check failed:', err);
+        }
+
         if (decisions.length === 0) {
             return {
                 summary: 'No decisions found yet. Upload documents to start building your decision graph.',
@@ -247,6 +275,7 @@ class ProactiveInsightsService {
             };
         }
 
+        // 2. Generate fresh summary
         // Build compact context from recent strategic decisions
         const strategic = decisions
             .filter(d => d.importance === 'strategic' || d.importance === 'critical')
@@ -255,6 +284,12 @@ class ProactiveInsightsService {
         const context = strategic.length > 0
             ? strategic.map(d => `- ${d.decision} (by ${d.actor})`).join('\n')
             : decisions.slice(0, 5).map(d => `- ${d.decision} (by ${d.actor})`).join('\n');
+
+        let result = {
+            summary: `Your team has ${decisions.length} decisions recorded.`,
+            topPriorities: decisions.slice(0, 3).map(d => d.decision.substring(0, 50)),
+            suggestedFocus: 'Review recent decisions and identify follow-up actions.'
+        };
 
         try {
             const prompt = `Based on these team decisions, provide a brief JSON response:
@@ -274,7 +309,7 @@ Return ONLY valid JSON:
             const jsonMatch = response.response.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
                 const parsed = JSON.parse(jsonMatch[0]);
-                return {
+                result = {
                     summary: parsed.summary || 'Analysis in progress...',
                     topPriorities: parsed.topPriorities || [],
                     suggestedFocus: parsed.suggestedFocus || 'Continue current initiatives.'
@@ -282,14 +317,27 @@ Return ONLY valid JSON:
             }
         } catch (error) {
             console.warn('AI summary generation failed:', error);
+            // Return fallback, don't cache errors
+            return result;
         }
 
-        // Fallback
-        return {
-            summary: `Your team has ${decisions.length} decisions recorded.`,
-            topPriorities: decisions.slice(0, 3).map(d => d.decision.substring(0, 50)),
-            suggestedFocus: 'Review recent decisions and identify follow-up actions.'
-        };
+        // 3. Cache the successful result
+        try {
+            await supabaseService.client.from('proactive_insights').insert({
+                team_id: teamId,
+                category: 'ai_summary',
+                severity: 'info',
+                title: 'Daily AI Summary',
+                description: result.summary,
+                evidence: result, // Store full JSON structure here
+                expires_at: new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString()
+            });
+            console.log('💾 Cached new AI summary');
+        } catch (err) {
+            console.error('Failed to cache summary:', err);
+        }
+
+        return result;
     }
 }
 
