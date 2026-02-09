@@ -46,7 +46,7 @@ class GeminiService {
             try {
                 return response.response.text();
             } catch (e) {
-                console.warn('Failed to call response.text():', e);
+                // Silent fallback
             }
         }
 
@@ -68,7 +68,6 @@ class GeminiService {
             }
         }
 
-        console.warn('Could not extract text from Gemini response, structure:', JSON.stringify(response).substring(0, 200));
         return '';
     }
 
@@ -104,7 +103,6 @@ RULES:
 
             const rawText = this.extractText(response);
             if (!rawText) {
-                console.warn('⚠️ Empty response from Gemini cluster extraction');
                 return [];
             }
 
@@ -113,7 +111,6 @@ RULES:
                 .map(line => line.trim())
                 .filter(Boolean);
         } catch (error) {
-            console.error('❌ Gemini cluster extraction failed:', error);
             return [];
         }
     }
@@ -193,7 +190,6 @@ ${clusters.map((c, i) => `${i + 1}. ${c}`).join('\n')}
                 .trim();
 
             if (!rawText) {
-                console.error('❌ Empty response from Gemini decision extraction');
                 return [];
             }
 
@@ -230,7 +226,6 @@ ${clusters.map((c, i) => `${i + 1}. ${c}`).join('\n')}
                 } as CMEDecision;
             });
         } catch (error) {
-            console.error('❌ Gemini decision extraction failed:', error);
             return [];
         }
     }
@@ -243,16 +238,11 @@ ${clusters.map((c, i) => `${i + 1}. ${c}`).join('\n')}
         sourceType: SourceType,
         sourceRef: string
     ): Promise<CMEDecision[]> {
-        console.log('🔍 Gemini 3 Flash → extracting clusters');
         const clusters = await this.extractClusters(text);
 
         if (clusters.length === 0) {
-            console.warn('⚠️ No decision clusters found');
             return [];
         }
-
-        console.log(`📦 ${clusters.length} clusters found`);
-        console.log('🧠 Gemini 3 Pro → structuring decisions');
 
         const decisions = await this.extractDecisions(
             clusters,
@@ -260,7 +250,6 @@ ${clusters.map((c, i) => `${i + 1}. ${c}`).join('\n')}
             sourceRef
         );
 
-        console.log(`✅ ${decisions.length} decisions extracted`);
         return decisions;
     }
 
@@ -316,7 +305,6 @@ Answer format:
                 citations: relevantDecisions.map(d => d.decision_id)
             };
         } catch (error) {
-            console.error('❌ Oracle query failed:', error);
             return { error: 'Failed to query Oracle' };
         }
     }
@@ -377,7 +365,6 @@ Respond naturally while incorporating relevant context from the team's decisions
                 sources
             };
         } catch (error) {
-            console.error('❌ Chat failed:', error);
             return {
                 response: 'I apologize, but I encountered an error. Please try again.',
                 sources: []

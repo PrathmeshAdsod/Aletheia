@@ -372,7 +372,7 @@ export class AccountabilityEngineService {
 
             await supabase.from('proactive_insights').insert(records);
         } catch (err) {
-            console.error('Failed to store accountability insights:', err);
+            // Silent fail
         }
     }
 }

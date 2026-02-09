@@ -363,7 +363,6 @@ Format as JSON:
                 emergingPatterns: parsed.emergingPatterns || []
             };
         } catch (error) {
-            console.error('AI narrative generation failed:', error);
             return {
                 executiveSummary: this.getFallbackSummary(decisions),
                 fullNarrative: this.getFallbackNarrative(decisions, themes),
@@ -431,7 +430,7 @@ Format as JSON:
                 decision_count: story.decisionCount
             });
         } catch (err) {
-            console.error('Failed to store strategic story:', err);
+            // Silent fail
         }
     }
 

@@ -74,7 +74,6 @@ export class ExecutiveBriefingService {
                 .single();
 
             if (cached && cached.evidence) {
-                console.log('✅ [Service] Found cached Executive Briefing in DB');
                 const evidence = cached.evidence as any;
 
                 return {
@@ -95,7 +94,7 @@ export class ExecutiveBriefingService {
                 };
             }
         } catch (err) {
-            console.warn('Briefing cache check failed:', err);
+            // Silent fail
         }
         return null;
     }
@@ -105,8 +104,6 @@ export class ExecutiveBriefingService {
      * Cached for 12 hours (2 requests/day limit)
      */
     async generateBriefing(teamId: string, decisions: CMEDecision[]): Promise<ExecutiveBriefing> {
-        console.log(`🔍 [Service] generateBriefing called for team ${teamId} with ${decisions.length} decisions`);
-
         // 1. Check cache
         try {
             const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString();
@@ -122,7 +119,6 @@ export class ExecutiveBriefingService {
                 .single();
 
             if (cached && cached.evidence) {
-                console.log('✅ [Service] Serving cached Executive Briefing from DB');
                 const evidence = cached.evidence as any;
 
                 // Reconstruct briefing from cached data
@@ -146,10 +142,8 @@ export class ExecutiveBriefingService {
                 return cachedBriefing;
             }
         } catch (err) {
-            console.warn('Briefing cache check failed:', err);
+            // Silent fail
         }
-
-        console.log('🔄 Generating new Executive Briefing with gemini-3-flash-preview...');
 
         // Gather intelligence from all sources
         const [pulse, dna, risks] = await Promise.all([
@@ -213,9 +207,7 @@ export class ExecutiveBriefingService {
         // Call storeBriefing internally here ONLY when generating new.
 
         // Let's implement that.
-        this.storeBriefing(supabaseService.client, teamId, briefing).catch(console.error);
-
-        console.log('✅ Generated new Executive Briefing');
+        this.storeBriefing(supabaseService.client, teamId, briefing).catch(() => {});
 
         return briefing;
     }
@@ -377,7 +369,7 @@ Generate a crisp 2-3 sentence executive summary that captures the most important
                 try {
                     text = responseAny.response.text();
                 } catch (e) {
-                    console.warn('Failed to call response.text():', e);
+                    // Silent fallback
                 }
             }
 
@@ -392,13 +384,11 @@ Generate a crisp 2-3 sentence executive summary that captures the most important
             }
 
             if (!text || text.trim().length === 0) {
-                console.warn('Empty AI summary response, using fallback');
                 return this.getFallbackSummary(pulse, risks);
             }
 
             return text.trim();
         } catch (error) {
-            console.error('AI summary generation failed:', error);
             return this.getFallbackSummary(pulse, risks);
         }
     }
@@ -508,7 +498,7 @@ Generate a crisp 2-3 sentence executive summary that captures the most important
                 expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hour expiry
             });
         } catch (err) {
-            console.error('Failed to store briefing:', err);
+            // Silent fail
         }
     }
 }
