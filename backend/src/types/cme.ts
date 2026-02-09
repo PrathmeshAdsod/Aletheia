@@ -24,6 +24,16 @@ export enum RelationType {
     DEPENDS_ON = 'DEPENDS_ON'
 }
 
+// Tier 1: Importance weighting
+export enum ImportanceLevel {
+    LOW = 'low',
+    MEDIUM = 'medium',
+    STRATEGIC = 'strategic',
+    CRITICAL = 'critical'
+}
+
+export type ImportanceSource = 'ai' | 'manual';
+
 export interface CMEDecision {
     decision_id: string;           // SHA-256 hash
     schema_version: string;        // CRITICAL: Version tracking (e.g., "v1")
@@ -36,6 +46,9 @@ export interface CMEDecision {
     sentiment: SentimentType;
     precedents: string[];          // List of decision_ids
     timestamp?: string;            // ISO 8601 timestamp
+    // Tier 1: Importance
+    importance?: ImportanceLevel;
+    importance_source?: ImportanceSource;
 }
 
 export interface ConflictFlag {
@@ -70,3 +83,21 @@ export interface ConsistencyMetrics {
     unresolved_conflicts: number;
     total_decisions: number;
 }
+
+// Tier 1: Health Scores
+export interface HealthScores {
+    alignment: number;      // 0-100: % decisions without conflicts
+    stability: number;      // 0-100: inverse of decision churn
+    velocity: number;       // 0-100: normalized decisions/week
+    resolution: number;     // 0-100: conflict resolution maturity
+    clarity: number;        // 0-100: weighted importance distribution
+    overall: number;        // 0-100: composite score
+}
+
+export interface ScoreHistoryEntry {
+    recorded_at: string;
+    scores: HealthScores;
+    decision_count: number;
+    conflict_count: number;
+}
+

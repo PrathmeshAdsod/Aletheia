@@ -85,6 +85,30 @@ RULES:
     // --------------------------------------------------
     // Phase 2: Structured CME extraction (Gemini 3 Pro)
     // --------------------------------------------------
+
+    /**
+     * Simple importance extraction heuristics
+     * AI suggests importance based on keywords
+     */
+    private extractImportance(decision: string, reasoning: string): 'low' | 'medium' | 'strategic' | 'critical' {
+        const text = `${decision} ${reasoning}`.toLowerCase();
+
+        // Critical indicators
+        const criticalKeywords = ['critical', 'must', 'mandatory', 'blocker', 'blocking', 'urgent', 'immediately', 'essential', 'non-negotiable'];
+        if (criticalKeywords.some(k => text.includes(k))) return 'critical';
+
+        // Strategic indicators
+        const strategicKeywords = ['strategy', 'strategic', 'architecture', 'long-term', 'long term', 'vision', 'roadmap', 'foundation', 'core', 'fundamental'];
+        if (strategicKeywords.some(k => text.includes(k))) return 'strategic';
+
+        // Low priority indicators
+        const lowKeywords = ['minor', 'optional', 'nice to have', 'could', 'might', 'consider', 'maybe', 'low priority'];
+        if (lowKeywords.some(k => text.includes(k))) return 'low';
+
+        // Default
+        return 'medium';
+    }
+
     async extractDecisions(
         clusters: string[],
         sourceType: SourceType,
@@ -142,6 +166,9 @@ ${clusters.map((c, i) => `${i + 1}. ${c}`).join('\n')}
                     .update(`${d.actor}:${d.decision}:${sourceRef}`)
                     .digest('hex');
 
+                // AI-suggest importance
+                const aiImportance = this.extractImportance(d.decision || '', d.reasoning || '');
+
                 return {
                     decision_id: decisionId,
                     schema_version: 'v1',
@@ -153,7 +180,10 @@ ${clusters.map((c, i) => `${i + 1}. ${c}`).join('\n')}
                     constraints: d.constraints || [],
                     sentiment: d.sentiment || 'NEUTRAL',
                     precedents: d.precedents || [],
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    // Tier 1: AI-suggested importance
+                    importance: aiImportance,
+                    importance_source: 'ai' as const,
                 } as CMEDecision;
             });
         } catch (error) {

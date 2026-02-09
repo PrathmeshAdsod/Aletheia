@@ -18,6 +18,7 @@ import decisionRoutes from './routes/decisions';
 import flagRoutes from './routes/flags';
 import oracleRoutes from './routes/oracle';
 import integrationRoutes from './routes/integrations';
+import analyticsRoutes from './routes/analytics';
 
 const app = express();
 
@@ -45,6 +46,7 @@ app.use('/api', decisionRoutes);   // Team-scoped decisions & graph
 app.use('/api', oracleRoutes);     // Team-scoped Oracle queries
 app.use('/api', flagRoutes);       // Flags (to be updated for teams)
 app.use('/api', integrationRoutes); // Integrations (to be updated for teams)
+app.use('/api', analyticsRoutes);  // Tier 1: Health scores & analytics
 
 // 404 handler
 app.use((req, res) => {
