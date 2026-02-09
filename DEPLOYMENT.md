@@ -42,11 +42,11 @@ In Railway project → **Variables** tab, add:
 
 ```bash
 # Supabase
-SUPABASE_URL=https://yxitzzhkvbvmtkncyafc.supabase.co
+SUPABASE_URL=your_supabase_url_here
 SUPABASE_SERVICE_KEY=your_service_key_here
 
 # Neo4j AuraDB
-NEO4J_URI=neo4j+s://a88030b9.databases.neo4j.io
+NEO4J_URI=your_neo4j_uri_here
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your_neo4j_password_here
 

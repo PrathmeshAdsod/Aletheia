@@ -27,14 +27,14 @@ git push
 Click **Variables** tab and add these **8 variables**:
 
 ```bash
-SUPABASE_URL=https://yxitzzhkvbvmtkncyafc.supabase.co
-SUPABASE_SERVICE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl4aXR6emhrdmJ2bXRrbmN5YWZjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MDQ1OTY0NywiZXhwIjoyMDg2MDM1NjQ3fQ.CiqCf5kLam8twLrg1kTHGduKL6NrJXBjJ62BNU4CSL4
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_SERVICE_KEY=your_supabase_service_key_here
 
-NEO4J_URI=neo4j+s://a88030b9.databases.neo4j.io
+NEO4J_URI=your_neo4j_uri_here
 NEO4J_USERNAME=neo4j
-NEO4J_PASSWORD=kjdpIawII48K1FX6bf1b2OOgMj-KzhXEi1nfoAB4UWw
+NEO4J_PASSWORD=your_neo4j_password_here
 
-GEMINI_API_KEY=AIzaSyApIl5S6wNFXSiUTA4Lxc5dzpuV8udwFbE
+GEMINI_API_KEY=your_gemini_api_key_here
 
 NODE_ENV=production
 FRONTEND_URL=http://localhost:3000
