@@ -53,8 +53,11 @@ router.post(
 
             // 3. Retrieve relevant decisions using smart retrieval
             const allDecisions = await supabaseService.getDecisions(teamId, 100, 0);
+            console.log(`📊 Chat: Found ${allDecisions.length} total decisions for team ${teamId}`);
+
             const retrieval = chatRetriever.retrieve(message, allDecisions);
             const contextStr = chatRetriever.formatContext(retrieval.decisions);
+            console.log(`📝 Chat: Context length: ${contextStr.length} chars, ${retrieval.decisions.length} decisions`);
 
             // 4. Generate AI response
             const historyForAI = history.map(m => ({

@@ -118,9 +118,13 @@ class ChatRetrieverService {
 
     /**
      * Retrieve relevant decisions for a query within token budget
+     * Falls back to recent decisions if no term matches found
      */
     retrieve(query: string, decisions: CMEDecision[], maxTokens = MAX_CONTEXT_TOKENS): RetrievalResult {
+        console.log(`🔍 Chat Retriever: Processing query for ${decisions.length} decisions`);
+
         if (decisions.length === 0) {
+            console.log('⚠️ No decisions available for retrieval');
             return { decisions: [], tokenCount: 0, scores: new Map() };
         }
 
@@ -149,14 +153,38 @@ class ChatRetrieverService {
         // Sort by score descending
         scored.sort((a, b) => b.score - a.score);
 
+        // Check if we have any positive scores
+        const hasPositiveScores = scored.some(s => s.score > 0);
+
+        // If no positive scores, fallback to recency-based selection
+        if (!hasPositiveScores) {
+            console.log('📋 No term matches found, falling back to recent decisions');
+            // Sort by timestamp (most recent first)
+            const byRecency = [...decisions].sort((a, b) => {
+                const dateA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+                const dateB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+                return dateB - dateA;
+            });
+
+            // Take top 5 most recent
+            const recent = byRecency.slice(0, 5);
+            const tokenCount = recent.reduce((sum, d) => sum + this.estimateTokens(d), 0);
+            console.log(`✅ Returning ${recent.length} recent decisions (${tokenCount} tokens)`);
+            return {
+                decisions: recent,
+                tokenCount,
+                scores: new Map(recent.map((d, i) => [d.decision_id, 1 - i * 0.1]))
+            };
+        }
+
         // Select decisions within token budget
         const selected: CMEDecision[] = [];
         const scores = new Map<string, number>();
         let totalTokens = 0;
 
         for (const item of scored) {
-            // Skip zero-score items
-            if (item.score <= 0) continue;
+            // Skip zero-score items only if we already have some matches
+            if (item.score <= 0 && selected.length >= 3) continue;
 
             // Check if adding this would exceed budget
             if (totalTokens + item.tokenEstimate > maxTokens) {
@@ -173,6 +201,7 @@ class ChatRetrieverService {
             if (selected.length >= 10) break;
         }
 
+        console.log(`✅ Retrieved ${selected.length} decisions (${totalTokens} tokens)`);
         return { decisions: selected, tokenCount: totalTokens, scores };
     }
 

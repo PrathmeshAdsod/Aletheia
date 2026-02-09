@@ -2,7 +2,7 @@
 
 /**
  * Command Center - Executive Dashboard (Team-Scoped)
- * Premium enterprise design with advanced analytics
+ * Premium enterprise design with advanced analytics and proactive AI insights
  */
 
 import { useEffect, useState } from 'react';
@@ -20,11 +20,16 @@ import {
     ArrowDownRight,
     Zap,
     Target,
-    FileText
+    FileText,
+    Lightbulb,
+    Brain,
+    Sparkles
 } from 'lucide-react';
 import { KPICard } from '@/components/KPICard';
 import { Card } from '@/components/Card';
 import { HealthDashboard } from '@/components/HealthScores';
+import { StrategicPulse } from '@/components/StrategicPulse';
+import { StrategicDNA } from '@/components/StrategicDNA';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTeam } from '@/contexts/TeamContext';
 import { metricsApi } from '@/lib/team-api';
@@ -38,13 +43,31 @@ interface ConsistencyMetrics {
     total_decisions: number;
 }
 
+interface ProactiveInsight {
+    id: string;
+    type: string;
+    title: string;
+    description: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    suggestedAction?: string;
+}
+
+interface AISummary {
+    summary: string;
+    topPriorities: string[];
+    suggestedFocus: string;
+}
+
 export default function CommandCenter() {
     const { user, session } = useAuth();
     const { selectedTeam, loading: teamsLoading } = useTeam();
     const router = useRouter();
 
     const [metrics, setMetrics] = useState<ConsistencyMetrics | null>(null);
+    const [insights, setInsights] = useState<ProactiveInsight[]>([]);
+    const [aiSummary, setAiSummary] = useState<AISummary | null>(null);
     const [loading, setLoading] = useState(true);
+    const [insightsLoading, setInsightsLoading] = useState(true);
 
     useEffect(() => {
         if (!user && !teamsLoading) {
@@ -55,6 +78,8 @@ export default function CommandCenter() {
     useEffect(() => {
         if (selectedTeam && session?.access_token) {
             fetchMetrics();
+            fetchInsights();
+            fetchAISummary();
             const interval = setInterval(fetchMetrics, 10000);
             return () => clearInterval(interval);
         }
@@ -71,6 +96,57 @@ export default function CommandCenter() {
             console.error('Failed to fetch metrics:', error);
         } finally {
             setLoading(false);
+        }
+    }
+
+    async function fetchInsights() {
+        if (!selectedTeam || !session?.access_token) return;
+
+        try {
+            setInsightsLoading(true);
+            const response = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teams/${selectedTeam.team.id}/insights`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'x-team-id': selectedTeam.team.id,
+                    },
+                }
+            );
+            if (response.ok) {
+                const data = await response.json();
+                setInsights(data.insights || []);
+            }
+        } catch (error) {
+            console.warn('Failed to fetch insights:', error);
+        } finally {
+            setInsightsLoading(false);
+        }
+    }
+
+    async function fetchAISummary() {
+        if (!selectedTeam || !session?.access_token) return;
+
+        try {
+            const response = await fetch(
+                `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/teams/${selectedTeam.team.id}/insights/summary`,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${session.access_token}`,
+                        'x-team-id': selectedTeam.team.id,
+                    },
+                }
+            );
+            if (response.ok) {
+                const data = await response.json();
+                setAiSummary({
+                    summary: data.summary || '',
+                    topPriorities: data.topPriorities || [],
+                    suggestedFocus: data.suggestedFocus || ''
+                });
+            }
+        } catch (error) {
+            console.warn('Failed to fetch AI summary:', error);
         }
     }
 
@@ -106,6 +182,15 @@ export default function CommandCenter() {
         return { color: 'text-conflict', bg: 'bg-conflict-light', label: 'Critical' };
     };
 
+    const getSeverityStyles = (severity: string) => {
+        switch (severity) {
+            case 'critical': return 'border-l-red-500 bg-red-50';
+            case 'high': return 'border-l-orange-500 bg-orange-50';
+            case 'medium': return 'border-l-yellow-500 bg-yellow-50';
+            default: return 'border-l-blue-500 bg-blue-50';
+        }
+    };
+
     const scoreSentiment = metrics ? getScoreSentiment(metrics.score) : null;
 
     return (
@@ -127,6 +212,112 @@ export default function CommandCenter() {
                     </div>
                 </div>
             </div>
+
+            {/* STRATEGIC INTELLIGENCE - PULSE & DNA */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <StrategicPulse />
+                <StrategicDNA />
+            </div>
+
+            {/* PROACTIVE AI INSIGHTS - NEW SECTION */}
+            <Card className="p-0 overflow-hidden bg-gradient-to-br from-primary/5 via-surface to-surface">
+                <div className="p-6 border-b border-border">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary-light rounded-lg">
+                                <Brain className="w-5 h-5 text-primary" />
+                            </div>
+                            <div>
+                                <h2 className="text-h3 text-text-primary">AI Insights</h2>
+                                <p className="text-meta text-text-tertiary">Proactive recommendations for your team</p>
+                            </div>
+                        </div>
+                        <a
+                            href="/dashboard/chat"
+                            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg text-small font-medium transition-colors"
+                        >
+                            <Sparkles className="w-4 h-4" />
+                            Ask AI
+                        </a>
+                    </div>
+                </div>
+
+                <div className="p-6">
+                    {/* AI Summary */}
+                    {aiSummary && (
+                        <div className="mb-6 p-4 bg-surface rounded-xl border border-border">
+                            <div className="flex items-start gap-3">
+                                <Lightbulb className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
+                                <div className="flex-1">
+                                    <p className="text-small text-text-primary mb-3">{aiSummary.summary}</p>
+
+                                    {aiSummary.topPriorities.length > 0 && (
+                                        <div className="mb-3">
+                                            <p className="text-meta text-text-tertiary mb-2 uppercase tracking-wider">Top Priorities</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {aiSummary.topPriorities.map((p, i) => (
+                                                    <span key={i} className="px-3 py-1 bg-primary-light text-primary text-meta rounded-full">
+                                                        {p}
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {aiSummary.suggestedFocus && (
+                                        <div className="p-3 bg-aligned-light rounded-lg">
+                                            <p className="text-meta text-text-tertiary mb-1 uppercase tracking-wider">Suggested Focus</p>
+                                            <p className="text-small text-aligned">{aiSummary.suggestedFocus}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Proactive Insights */}
+                    {insightsLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                        </div>
+                    ) : insights.length > 0 ? (
+                        <div className="space-y-3">
+                            {insights.slice(0, 3).map((insight) => (
+                                <div
+                                    key={insight.id}
+                                    className={`p-4 rounded-lg border-l-4 ${getSeverityStyles(insight.severity)}`}
+                                >
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <h4 className="text-small font-medium text-text-primary mb-1">{insight.title}</h4>
+                                            <p className="text-meta text-text-secondary">{insight.description}</p>
+                                            {insight.suggestedAction && (
+                                                <p className="text-meta text-primary mt-2">
+                                                    💡 {insight.suggestedAction}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <span className={`px-2 py-1 rounded-full text-meta font-medium ${insight.severity === 'critical' ? 'bg-red-200 text-red-800' :
+                                            insight.severity === 'high' ? 'bg-orange-200 text-orange-800' :
+                                                insight.severity === 'medium' ? 'bg-yellow-200 text-yellow-800' :
+                                                    'bg-blue-200 text-blue-800'
+                                            }`}>
+                                            {insight.severity}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-8">
+                            <Sparkles className="w-8 h-8 text-text-tertiary mx-auto mb-2" />
+                            <p className="text-small text-text-secondary">
+                                No urgent insights right now. Your team is on track!
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </Card>
 
             {/* Tier 1: Health Scores Section */}
             <Card className="p-8">
@@ -284,12 +475,12 @@ export default function CommandCenter() {
                             <p className="text-meta text-text-tertiary">Add decisions</p>
                         </a>
                         <a
-                            href="/dashboard/oracle"
+                            href="/dashboard/chat"
                             className="p-4 rounded-xl bg-neutral-light hover:bg-primary-light border border-transparent hover:border-primary/20 transition-all group"
                         >
-                            <Zap className="w-5 h-5 text-text-tertiary group-hover:text-primary mb-2" />
-                            <p className="text-small font-medium text-text-primary">Ask Oracle</p>
-                            <p className="text-meta text-text-tertiary">Query decisions</p>
+                            <Brain className="w-5 h-5 text-text-tertiary group-hover:text-primary mb-2" />
+                            <p className="text-small font-medium text-text-primary">AI Chat</p>
+                            <p className="text-meta text-text-tertiary">Get insights</p>
                         </a>
                         <a
                             href="/dashboard/nexus"
@@ -365,3 +556,4 @@ export default function CommandCenter() {
         </div>
     );
 }
+

@@ -1,5 +1,6 @@
 -- ============================================
 -- Tier 2 Migration: Chat Messages & Oracle History
+-- IDEMPOTENT VERSION - Safe to run multiple times
 -- ============================================
 
 -- Chat Messages Table (Team-shared conversations with AI)
@@ -21,10 +22,10 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_team_time
 CREATE INDEX IF NOT EXISTS idx_chat_messages_user 
     ON chat_messages(user_id) WHERE user_id IS NOT NULL;
 
--- RLS Policies for chat_messages
+-- RLS Policies for chat_messages (drop if exists, then create)
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
--- Team members can view chat messages
+DROP POLICY IF EXISTS "Team members can view chat" ON chat_messages;
 CREATE POLICY "Team members can view chat" ON chat_messages
     FOR SELECT USING (
         team_id IN (
@@ -33,7 +34,7 @@ CREATE POLICY "Team members can view chat" ON chat_messages
         )
     );
 
--- Team members can insert messages
+DROP POLICY IF EXISTS "Team members can chat" ON chat_messages;
 CREATE POLICY "Team members can chat" ON chat_messages
     FOR INSERT WITH CHECK (
         team_id IN (
@@ -42,7 +43,7 @@ CREATE POLICY "Team members can chat" ON chat_messages
         )
     );
 
--- Only admins can delete messages
+DROP POLICY IF EXISTS "Admins can clear chat" ON chat_messages;
 CREATE POLICY "Admins can clear chat" ON chat_messages
     FOR DELETE USING (
         team_id IN (
@@ -69,10 +70,10 @@ CREATE TABLE IF NOT EXISTS oracle_queries (
 CREATE INDEX IF NOT EXISTS idx_oracle_queries_team_time 
     ON oracle_queries(team_id, created_at DESC);
 
--- RLS Policies for oracle_queries
+-- RLS Policies for oracle_queries (drop if exists, then create)
 ALTER TABLE oracle_queries ENABLE ROW LEVEL SECURITY;
 
--- Team members can view oracle queries
+DROP POLICY IF EXISTS "Team members can view oracle history" ON oracle_queries;
 CREATE POLICY "Team members can view oracle history" ON oracle_queries
     FOR SELECT USING (
         team_id IN (
@@ -81,7 +82,7 @@ CREATE POLICY "Team members can view oracle history" ON oracle_queries
         )
     );
 
--- Team members can insert queries
+DROP POLICY IF EXISTS "Team members can query oracle" ON oracle_queries;
 CREATE POLICY "Team members can query oracle" ON oracle_queries
     FOR INSERT WITH CHECK (
         team_id IN (

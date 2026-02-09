@@ -23,6 +23,8 @@ import timelineRoutes from './routes/timeline';
 import settingsRoutes from './routes/settings';
 import notificationsRoutes from './routes/notifications';
 import chatRoutes from './routes/chat';
+import insightsRoutes from './routes/insights';
+import intelligenceRoutes from './routes/intelligence';
 
 const app = express();
 
@@ -55,6 +57,8 @@ app.use('/api', timelineRoutes);   // Timeline: Chronological events
 app.use('/api', settingsRoutes);   // Settings: Team & user preferences
 app.use('/api', notificationsRoutes); // Notifications: Team notifications
 app.use('/api', chatRoutes);       // Chat: Team AI conversations
+app.use('/api', insightsRoutes);   // Insights: Proactive AI recommendations
+app.use('/api', intelligenceRoutes); // Intelligence: Strategic Pulse & DNA
 
 // 404 handler
 app.use((req, res) => {
