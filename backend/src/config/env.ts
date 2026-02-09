@@ -63,7 +63,7 @@ function validateEnv(): EnvConfig {
 
     return {
         PORT: parseInt(process.env.PORT || '8000', 10),
-        NODE_ENV: process.env.NODE_ENV || 'development',
+        NODE_ENV: process.env.NODE_ENV || 'production',
         SUPABASE_URL: process.env.SUPABASE_URL!,
         SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY!,
         NEO4J_URI: process.env.NEO4J_URI!,

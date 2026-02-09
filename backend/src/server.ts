@@ -30,18 +30,32 @@ import strategicIntelligenceRoutes from './routes/strategic-intelligence';
 const app = express();
 
 // Middleware
+const allowedOrigins = [
+    config.FRONTEND_URL,
+    'http://localhost:3000',
+    'http://localhost:3001'
+].filter(Boolean);
+
 app.use(cors({
-    origin: config.FRONTEND_URL,
+    origin: (origin, callback) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Debug logging middleware
-app.use((req, res, next) => {
-    console.log(`📡 [Server] ${req.method} ${req.url}`);
-    next();
-});
+// Debug logging middleware (production-safe)
+if (config.NODE_ENV === 'development') {
+    app.use((req, res, next) => {
+        console.log(`📡 [Server] ${req.method} ${req.url}`);
+        next();
+    });
+}
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
